@@ -1,0 +1,48 @@
+---
+title: "Untitled"
+author: "Kendall Brown"
+date: "November 30, 2017"
+output:
+  word_document: default
+  pdf_document: default
+---
+```{r}
+projdata=read.table("C:/Users/kebro/Desktop/Pstat 126/projdata.txt",header = T)
+fitfm=lm(happy~.,data=projdata)
+summary(fitfm)
+plot(projdata)
+fitint=lm(happy~.^2,data=projdata)
+summary(fitint)
+anova(fitfm)
+anova(fitint)
+attach(projdata)
+plot(workhrs[gender==1],happy[gender==1],col="red4",xlab="Work Hours",ylab="Happiness Level", main="Happiness by Work Hours and Gender",pch=20)
+abline(lm(happy[gender==1]~workhrs[gender==1]),col="red4")
+points(workhrs[gender==0],happy[gender==0],col="blue3",pch=3)
+abline(lm(happy[gender==0]~workhrs[gender==0]),col="blue3")
+legend("topright",col=c("red4","blue3"),inset=.05,cex=.75,lty=c(1,1),pch=c(20,3),legend=c("women","Men"))
+plot(relationship[gender==1],happy[gender==1],col="red4",xlab="Relationship Standing",ylab="Happiness Level", main="Happiness by Relationship  and Gender",pch=20)
+abline(lm(happy[gender==1]~relationship[gender==1]),col="red4")
+points(relationship[gender==0],happy[gender==0],col="blue3",pch=3)
+abline(lm(happy[gender==0]~relationship[gender==0]),col="blue3")
+legend("topleft",col=c("red4","blue3"),inset=.05,cex=.75,lty=c(1,1),pch=c(20,3),legend=c("women","Men"))
+```
+```{r}
+fitlow=lm(happy~1,data=projdata)
+step(fitlow,scope=list(lower=fitlow,upper=fitint),direction="forward")
+```
+```{r}
+step(fitint,scope=list(lower=fitlow,upper=fitint),direction="backward")
+```
+```{r}
+step(fitlow,scope=list(lower=fitlow,upper=fitint),direction="both")
+```
+
+```{r}
+fitfin=lm(happy~gender+workhrs+relationship+gender:relationship)
+summary(fitfin)
+plot(fitted(fitfin),residuals(fitfin),main="Residuals vs Fitted Values of the Final Model")
+qqnorm(residuals(fitfin),main="QQ-plot of Final Model Residuals",col="orange3",pch=20)
+qqline(residuals(fitfin))
+hist(residuals(fitfin),breaks=20,col="chocolate4",main="Histogram of Final Model Residuals")
+```

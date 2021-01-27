@@ -1,0 +1,145 @@
+---
+title: "Untitled"
+output: html_document
+---
+Loading data, neccesary libraries, and partitioning data into training/test sets
+```{r eval=FALSE, include=FALSE}
+library(ggplot2)
+library(MASS)
+library(car)
+library(lmtest)
+library(olsrr)
+library(mctest)
+library(ppcor)
+library(GGally)
+```
+
+```{r eval=FALSE, include=FALSE}
+data=read.table(choose.files(),header=T)
+rnum=0773111
+set.seed(rnum) 
+d.test <- sample(1:dim(data)[1], 200 ) 
+data.test <- data[d.test, ] 
+data.training <- data[-d.test, ]
+```
+
+```{r}
+summary(data.training)
+str(data.training)
+ggpairs(data.training[,-ncol(data.training)])
+```
+
+Fitting a first order linear model predicting SWI as a function of all variables -duration
+```{r}
+fit.basic=lm(SWI~.-duration,data=data.training)
+fit.basic.sum=summary(fit.basic)
+fit.basic.sum
+par(mfrow = c(2,2))
+plot(fit.basic)
+data.training.no_out=data.training[abs(scale(fit.basic$residuals))<1.96,]
+fit.basic=lm(SWI~.-duration,data=data.training.no_out)
+fit.basic.sum=summary(fit.basic)
+fit.basic.sum
+par(mfrow = c(2,2))
+plot(fit.basic)
+```
+```{r}
+#model coefficients and their 95% confidence intervals
+coefficients(fit.basic)
+confint(fit.basic)
+#ANOVA analysis of model
+anova(fit.basic)
+```
+Testing model assumptions
+```{r}
+#QQ-Plot and Histogram to visualize normality of errors
+ols_plot_resid_qq(fit.basic)
+hist(fit.basic$residuals,breaks = 50,
+     xlab="Residuals", main="Histogram Residuals",
+     probability = T)
+curve(dnorm(x, mean=mean(fit.basic$residuals), sd=sd(fit.basic$residuals)), 
+      col="darkblue", lwd=2, add=TRUE, yaxt="n")
+##Visualiztion of Residuals vs. Fitted Values to evaluate homoscedasticity
+ols_plot_resid_fit(fit.basic)
+```
+Formal Tests of assumptions
+```{r}
+#Breusch-Pagan Test for homoscedasticity
+bptest(fit.basic)
+#NCV test for homoscedasticity
+ncvTest(fit.basic)
+#Normality of errors tests
+ols_test_normality(fit.basic)
+ols_test_correlation(fit.basic)
+```
+Tests for multi-colinearity
+```{r}
+#Covariance and correlation matracies of each predictor variable
+cov(data.training.no_out[,c(-1,-6)])
+cor(data.training[,c(-1,-6)])
+#formal multicolinearity tests
+omcdiag(data.training.no_out[,c(-1,-6)],data.training.no_out[,1])
+#no severe multicolinearity discovered
+```
+Checking Interactions
+```{r}
+fit.exp=lm(SWI~SWF*temperature*management-SWF:management-temperature:management-SWF:temperature,data=data.training)
+summary(fit.exp)
+```
+Evaluating Quadratic model
+```{r}
+fit.exp1=lm(SWI~temperature+I(SWF^2)+I(management^2),data=data.training)
+summary(fit.exp1)
+```
+Box-Cox Transform
+```{r}
+fullmodel=lm(SWI~SWF*temperature*management*size,data=data.training.no_out)
+bc=boxcox(fullmodel,lambda = seq(-3,3))
+lambda=bc$x[which(bc$y==max(bc$y))]
+lambda
+fit.bc=lm(I(SWI^lambda)~SWF*temperature*management,data=data.training.no_out)
+summary(fit.bc)
+```
+```{r}
+fit.bc.full=lm(SWI^lambda~SWF*temperature*management*size,data=data.training.no_out)
+summary(fit.bc.full)
+par(mfrow = c(2,2))
+plot(fit.bc.full)
+fit.bc.null=lm(SWI^lambda~1,data=data.training.no_out)
+summary(fit.bc.null)
+par(mfrow = c(2,2))
+plot(fit.bc.null)
+```
+Stepwise variable selection
+```{r}
+stepAIC(fit.bc.full,scope=list(upper=~SWF*temperature*management*size,lower=~1),direction = "backward")
+stepAIC(fit.bc.null,scope=list(upper=~SWF*temperature*management*size,lower=~1),direction = "forward")
+stepAIC(fit.bc.null,scope=list(upper=~SWF*temperature*management*size,lower=~1),direction = "both")
+```
+```{r}
+fit.bc.backwards=lm(formula = SWI^lambda ~ SWF + temperature + management + size + 
+    SWF:temperature + temperature:management + SWF:size + temperature:size + 
+    management:size + SWF:temperature:size + temperature:management:size, 
+    data = data.training.no_out)
+summary(fit.bc.backwards)
+fit.bc.forward=lm(formula = SWI^lambda ~ SWF + temperature + management, data = data.training.no_out)
+summary(fit.bc.forward)
+```
+
+
+```{r}
+par(mfrow = c(2,2))
+plot(fit.bc)
+#normality test
+ols_test_normality(fit.bc)
+par(mfrow = c(1,1))
+hist(fit.bc$residuals,breaks = 50,
+     xlab="Residuals", main="Histogram Residuals",
+     probability = T)
+curve(dnorm(x, mean=mean(fit.bc$residuals), sd=sd(fit.bc$residuals)), 
+      col="darkblue", lwd=2, add=TRUE, yaxt="n")
+#Breusch-Pagan Test for homoscedasticity
+bptest(fit.bc)
+#NCV test for homoscedasticity
+ncvTest(fit.bc)
+```

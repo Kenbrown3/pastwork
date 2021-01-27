@@ -1,0 +1,119 @@
+---
+title: "Untitled"
+author: "Kendall Brown"
+date: "October 31, 2019"
+output: pdf_document
+---
+
+```{r}
+boxplot(fev$FEV~fev$smoke)
+```
+```{r}
+plot(fev$FEV~fev$age,col=fev$smoke+3)
+```
+```{r}
+fit.fev.smoke=lm(FEV~age+sex+height+I(height)^2+smoke,data=fev)
+fit.fev.smoke1=lm(FEV~age,data=fev[fev$smoke==1,])
+fit.fev.smoke0=lm(FEV~age,data=fev[fev$smoke==0,])
+smoke0.summ=summary(fit.fev.smoke0)
+smoke1.summ=summary(fit.fev.smoke1)
+
+plot(fev$FEV~fev$age,col=fev$smoke+3,ylab="FEV",xlab="Age",main="Prallel")
+legend(3, 5.5, c("Non-smokers", "Smokers"), pch = 1, col = c(3,4))
+abline(a=coefficients(smoke0.summ)[1],b=coefficients(smoke0.summ)[2],col=3)
+abline(a=coefficients(smoke0.summ)[1]+coefficients(smoke1.summ)[1],b=coefficients(smoke0.summ)[2],col=4)
+
+plot(fev$FEV~fev$age,col=fev$smoke+3,ylab="FEV",xlab="Age",main="Non-Parallel")
+legend(3, 5.5, c("Non-smokers", "Smokers"), pch = 1, col = c(3,4))
+abline(fit.fev.smoke0,col=3)
+abline(fit.fev.smoke1,col=4)
+```
+```{r}
+preddata <- matrix(c(10, 1, 50, 0), ncol = 4)
+preddata <- as.data.frame(preddata)
+names(preddata) <- c("age", "sex", "height", "smoke")
+predict(fit.fev.smoke,newdata=preddata,interval = "confidence")
+```
+```{r}
+preddata <- matrix(c(16, 0, 70, 1), ncol = 4)
+preddata <- as.data.frame(preddata)
+names(preddata) <- c("age", "sex", "height", "smoke")
+predict(fit.fev.smoke,newdata=preddata,interval = "confidence")
+
+```
+
+```{r}
+#library(MASS)
+sma=read.table(choose.files(),header=F)
+names(sma) <- c("n",'LA', 'TP', 'PC', 'PS', 'P', 'HB', 'G', 'L', 'I', 'C', 'R')
+sma$CR <- sma$C/sma$TP
+sma=sma[,-c(3,11,12)]
+sma.cal=sma[sma$n%%2==0,-1]
+sma.val=sma[sma$n%%2!=0,-1]
+```
+```{r}
+fit.sma=lm(CR~.,data=sma.cal)
+summary(fit.sma)
+stepAIC(fit.sma, scope = list(upper = ~ LA + PC + PS + P + HB + G + L + I, lower = ~ 1), direction = "backward")
+stepAIC(fit.sma, scope = list(upper = ~ LA + PC + PS + P + HB + G + L + I, lower = ~ 1), direction = "backward")
+```
+```{r}
+fit.null <- lm(CR ~ 1, data = sma.cal)
+fit.null
+stepAIC(fit.null, scope = list(upper = ~ LA + PC + PS + P + HB + G + L + I, lower = ~ 1), direction = "forward")
+```
+```{r}
+stepAIC(fit.null, scope = list(upper = ~ LA + PC + PS + P + HB + G + L + I, lower = ~ 1), direction = "both")
+stepAIC(fit.sma, scope = list(upper = ~ LA + PC + PS + P + HB + G + L + I, lower = ~ 1), direction = "both")
+```
+```{r}
+model1 <- lm(CR ~ LA + PC + HB + G + I, data = sma.cal)
+# Model 2:  CR ~ LA + G
+model2 <- lm(CR ~ LA + G, data = sma.cal)
+# Model 3: CR ~ LA + HB + G + I
+model3 <- lm(CR ~ LA + HB + G + I, data = sma.cal)
+```
+```{r}
+# PRESS
+PRESS1 <- sum((residuals(model1) / (1 - lm.influence(model1)$hat))^2)
+PRESS2 <- sum((residuals(model2) / (1 - lm.influence(model2)$hat))^2)
+PRESS3 <- sum((residuals(model3) / (1 - lm.influence(model3)$hat))^2)
+PRESS <- c(PRESS1, PRESS2, PRESS3)
+names(PRESS) <- c("model1", "model2", "model3")
+sort(PRESS)
+```
+```{r}
+model1.val = lm(CR ~ LA + PC + HB + G + I, data = sma.val)
+summary(model1.val)
+summary(model1)
+model2.val = lm(CR ~ LA + G, data = sma.val)
+summary(model2.val)
+summary(model2)
+model3.val = lm(CR ~ LA + HB + G + I, data = sma.val)
+summary(model3.val)
+summary(model3)
+```
+```{r}
+
+# MSE
+MSE1 <- summary(model1)$sigma^2
+MSE2 <- summary(model2)$sigma^2
+MSE3 <- summary(model3)$sigma^2
+MSE <- c(MSE1, MSE2, MSE3)
+names(MSE) <- c("model1", "model2", "model3")
+sort(MSE)
+attach(sma.val)
+# MSEP
+MSEP1 <- mean((predict(model1, newdata = sma.val) - CR)^2)
+MSEP2 <- mean((predict(model2, newdata = sma.val) - CR)^2)
+MSEP3 <- mean((predict(model3, newdata = sma.val) - CR)^2)
+MSEP <- c(MSEP1, MSEP2, MSEP3)
+names(MSEP) <- c("model1", "model2", "model3")
+sort(MSEP)
+
+# Results
+validation.results <- data.frame(rbind(PRESS/n, MSE, MSEP), row.names = c("PRESS/n", "MSE", "MSEP"))
+names(validation.results) <- c("model1", "model2", "model3")
+validation.results
+detach(sma.val)
+```

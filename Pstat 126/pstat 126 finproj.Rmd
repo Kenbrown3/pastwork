@@ -1,0 +1,79 @@
+---
+title: "Pstat 126 Project"
+author: "Kendall Brown"
+date: "November 25, 2017"
+output: pdf_document
+---
+```{r}
+projdata=read.table("C:/Users/kebro/Desktop/Pstat 126/projdata.txt",header = T)
+projmale=subset(projdata,projdata$gender==0)
+projfem=subset(projdata,projdata$gender==1)
+pairs(happy~workhrs+gender+relationship,data=projdata,main="Full Model")
+fitproj=lm(happy~workhrs+gender+relationship,data=projdata)
+pairs(happy~workhrs+relationship,data=projmale, main="Male Model")
+fitprojm=lm(happy~workhrs+relationship,data=projmale)
+pairs(happy~workhrs+relationship,data=projfem,main="Female Model")
+fitprojf=lm(happy~workhrs+relationship,data=projfem)
+anova(fitproj)
+anova(fitprojm)
+anova(fitprojf)
+```
+```{r}
+##Diagnostic plots of full model.
+plot(residuals(fitproj))
+abline(h=0)
+plot(fitted(fitproj),residuals(fitproj))
+abline(h=0)
+qqnorm(residuals(fitproj))
+qqline(residuals(fitproj))
+hist(residuals(fitproj),breaks=20,prob=T)
+```
+
+```{R}
+##Diagnostic plots of male model
+plot(residuals(fitprojm))
+abline(h=0)
+plot(fitted(fitprojm),residuals(fitprojm))
+abline(h=0)
+qqnorm(residuals(fitprojm))
+qqline(residuals(fitprojm))
+hist(residuals(fitprojm),breaks=10)
+```
+
+```{R}
+##Diagnostic plots of female model
+plot(residuals(fitprojf))
+abline(h=0)
+plot(fitted(fitprojf),residuals(fitprojf))
+abline(h=0)
+qqnorm(residuals(fitprojf))
+qqline(residuals(fitprojf))
+hist(residuals(fitprojf),breaks=10)
+```
+
+```{R}
+##Diagnostic plots of neutral model
+plot(residuals(fitprojn))
+abline(h=0)
+plot(fitted(fitprojn),residuals(fitprojn))
+abline(h=0)
+qqnorm(residuals(fitprojn))
+qqline(residuals(fitprojn))
+hist(residuals(fitprojn),breaks=20)
+```
+
+
+```{r}
+fitprojw=lm(happy~workhrs,data=projdata)## model of happiness to work
+fitprojg=lm(happy~gender,data=projdata)## model of happiness to gender
+fitprojr=lm(happy~relationship,data=projdata)## model of happiness to relationship
+fitprojwg=lm(happy~workhrs+gender,data=projdata)## model of happiness to work and gender
+fitprojrg=lm(happy~relationship+gender,data=projdata)## model of hppiness to relationship and gender
+fitprojwr=lm(happy~workhrs+relationship,data=projdata)## model of happiness to work and relatioship
+anova(fitprojw,fitproj)## test of gender and relationship
+anova(fitprojg,fitproj)## test of work and relationship
+anova(fitprojr,fitproj)## test of work and gender
+anova(fitprojwg,fitproj)## test of relationship
+anova(fitprojrg,fitproj)## test of work
+anova(fitprojwr,fitproj)## test of gender
+```

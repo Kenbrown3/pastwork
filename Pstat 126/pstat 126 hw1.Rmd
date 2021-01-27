@@ -1,0 +1,33 @@
+---
+title: "Untitled"
+output: word_document
+---
+
+```{r}
+data(pima, package="faraway")
+newpima<-subset(pima,pima$age>0 & pima$glucose>0)
+hist(newpima$glucose,xlab='Glucose',main='Histogram of Glucose')
+hist(newpima$age,xlab='Age',main='Histogram of Age')
+mean(newpima$age)
+mean(newpima$glucose)
+sd(newpima$age)
+sd(newpima$glucose)
+fit1=lm(glucose~age, data=newpima)
+summary(fit1)
+plot(newpima$age,newpima$glucose,xlab='Age',ylab='Glucose', main='Scatterplot of Age and Glucose')
+abline(fit1)
+```
+```{r}
+data(GaltonFamilies,package="HistData")
+menheight<-subset(GaltonFamilies,GaltonFamilies$gender=="male")
+fit2=lm(childHeight~father, data=menheight)
+hist(menheight$childHeight, xlab = "Child Height", main="Histogram of Child Height")
+hist(menheight$father, xlab="Father Height", main = "Histogram of Father Height")
+mean(menheight$father)
+mean(menheight$childHeight)
+sd(menheight$childHeight)
+sd(menheight$father)
+summary(fit2)
+plot(menheight$father,menheight$childHeight,xlab="Father Height",ylab="Child Height")
+abline(fit2)
+```

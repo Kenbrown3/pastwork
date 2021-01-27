@@ -1,0 +1,47 @@
+---
+title: "Pstat 126 HW5"
+author: "Kendall Brown"
+date: "Fall 2017"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+3. Critical values of F-statistics
+```{r}
+1-pf(5,2,7)#p-value of regression model
+1-pf(5,1,7)#p-vlaue of X2
+```
+
+4.
+```{r}
+patsat=read.table("C:/Users/kebro/Desktop/Pstat 126/patsat.txt",header=T)
+plot(patsat)
+attach(patsat)
+fitpat=lm(sat~age+sev+anx)
+summary(fitpat)
+```
+b. From this model, we can expect a patient to have a satisfaction level of 158.4913 decreasing by 1.1416, .4420, and 13.4702 per unit increase of age, severity, and anxiety level respectively. From R2 we estimate that 68.22% of satisfactions observed variation can be accounted for by age, severity, and anxiety level. 
+
+c. We calculate a F-statistic of 30.05 on 3 and 42 degrees of freedom with a corresponding p-value of approvimately 0. We reject the null hypothesis of the model bing insignificant and conclude there is not enough evidence to reject significance.
+
+d.
+```{r}
+anova(lm(sat~sev+age+anx))
+```
+
+e.
+```{r}
+fitpat2=lm(sat~age+sev)
+fitpat3=lm(sat~age+sev+anx)
+anova(fitpat2,fitpat3)
+```
+
+We test the null hypothesis, the slope correlating to anxiety level is 0, against the alt hypothesis, the slope of anxiety level is not 0. we obtain an F-statistic of 3.5997 with a correlating p-value of .06468. We fail to reject the null at a 5% alpha level and conclude that the anxiety predictor is insignificant to a model given age and severity level. 
+
+```{r}
+fitpat4=lm(sat~age)
+anova(fitpat4,fitpat3)
+```
+
+We test the null hypothesis, the slopes correlating to severity and anxiety level are 0, against the alt hypothesis, the slopes of severity and anxiety level are not 0. we obtain an F-statistic of 4.1768 with a correlating p-value of .02216. We reject the null at a 5% alpha level and conclude that the severity and anxiety predictors are significant to a model given age. 

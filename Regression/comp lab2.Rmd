@@ -1,0 +1,134 @@
+---
+title: "Untitled"
+author: "Kendall Brown"
+date: "October 23, 2019"
+output: html_document
+---
+
+```{r}
+cars=read.csv(choose.files(),header=T)
+fit.cars=lm(MPG~.-Car-Country,data=cars)
+summary(fit.cars)
+```
+```{r}
+cor(cars[,2:5])
+```
+
+to test if the first coefficint of regression equates to -8 we take the given measurement and standard error and calculate the probability of observing a coefficient larger in magnitude than -8.
+
+```{r}
+#probability of observing a value larger in magnitude than -8. We wil approximate the t distribution with a normal as the sample size is large.
+1-pnorm(-8,-7.3898,2.0797)
+```
+We observe that -8 falls within the .05 rejection limit. We fail to reject the null that the first regression coefficinet is -8.
+
+```{r}
+fit.cars2=lm(MPG~Weight,data=cars)
+summary(fit.cars2)
+plot(cars$Weight,cars$MPG,col=(cars$Country))
+abline(fit.cars2)
+```
+
+We observe a regression line in close approximation to the trend of the data, despite the obvious presence of outliers.
+
+```{r}
+library(MASS)
+plot(fitted(fit.cars2),residuals(fit.cars2))
+qqnorm(residuals(fit.cars2))
+qqline(residuals(fit.cars2))
+hist(residuals(fit.cars2),breaks=20)
+plot(stdres(fit.cars2),ylim=c(-3,3))
+abline(h = -2.5, lty = 2)
+abline(h = 2.5, lty = 2)
+par(mfrow=c(2,2))
+plot(fit.cars2)
+```
+
+```{r}
+fit.cars3=lm(MPG~Weight+I(Weight^2),data=cars)
+summary(fit.cars3)
+plot(cars$Weight,cars$MPG)
+curve(fit.cars3$coefficients[1]+fit.cars3$coefficients[2]*x+fit.cars3$coefficients[3]*x^2,0,5,add = T)
+par(mfrow=c(2,2))
+plot(fit.cars3)
+par(mfrow=c(1,1))
+plot(stdres(fit.cars3),ylim=c(-3,3))
+abline(h = -2.5, lty = 2)
+abline(h = 2.5, lty = 2)
+```
+```{r}
+weight.center=cars$Weight-mean(cars$Weight)
+fit.cars.cent=lm(cars$MPG~weight.center+I(weight.center^2))
+summary(fit.cars.cent)
+plot(weight.center,cars$MPG)
+curve(fit.cars.cent$coefficients[1]+fit.cars.cent$coefficients[2]*x+fit.cars.cent$coefficients[3]*x^2,-1,5,add = T)
+```
+```{r}
+fev=read.table(choose.files(),header=T)
+pairs(fev)
+boxplot(fev)
+
+```
+```{r}
+fit.fev=lm(FEV~age+height,data=fev)
+summary(fit.fev)
+par(mfrow=c(2,2))
+plot(fit.fev)
+par(mfrow=c(1,1))
+hist(fit.fev$residuals,breaks = 20)
+```
+
+```{r}
+fit.fev.res=residuals(fit.fev)
+fit.fev.std=stdres(fit.fev)
+fit.fv.fv=fitted.values(fit.fev)
+plot(fit.fev.std,ylim=c(-3,3))
+abline(h=c(-2.5,2.5))
+qqnorm(fit.fev.std)
+qqline(fit.fev.std)
+```
+```{r}
+fit.fev.pres.age=fit.fev.res+coefficients(fit.fev)[2]*fev$age
+fit.fev.pres.height=fit.fev.res+coefficients(fit.fev)[3]*fev$height
+par(mfrow=c(1,2))
+plot(fev$age,fit.fev.pres.age)
+plot(fev$height,fit.fev.pres.height)
+```
+```{r}
+fit.fev2=lm(FEV~age+height+I(age^2)+I(height^2),data=fev)
+summary(fit.fev2)
+```
+
+To test the hypothesis that the coefficients of regression for both age and height equate to 0, we will compare them to a normal distribution with mean and standard deviation parameters equal to the observed estimate and standard error.
+```{r}
+anova(fit.fev,fit.fev2)
+```
+Both intercepts lay outside the rejection boundry. We reject the null that the intercept coefficients of height and age are 0.
+
+We drop age^2 as it is not significant
+```{r}
+fit.fev2=lm(FEV~age+height+I(height^2),data=fev)
+summary(fit.fev2)
+par(mfrow=c(2,2))
+plot(fit.fev2)
+```
+
+```{r}
+fit.fev3=lm(FEV~age+height+I(age^2)+I(height^2)+age:height,data=fev)
+summary(fit.fev3)
+```
+
+```{r}
+fit.fev3.trimmed=lm(FEV~age+I(age^2)+age:height,data=fev)
+summary(fit.fev3.trimmed)
+par(mfrow=c(2,2))
+plot(fit.fev3.trimmed)
+```
+```{r}
+library(rgl)
+plot3d(fev$age,fev$FEV,fev$height,type="s",col="red",size=1)
+x1=seq(0,50)
+x2=seq(50,80)
+y=matrix(0,length(x1),length(x2))
+
+```

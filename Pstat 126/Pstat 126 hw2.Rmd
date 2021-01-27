@@ -1,0 +1,55 @@
+---
+Author: Kendall Brown
+title: "Pstat126 HW2"
+output: word_document
+---
+
+Q1a. Y=(1,2,3,4,5)
+Q1b. Y=(11,12,13,14,15)
+Q1c. Y=(8,11,14,17,20)
+q1d. Y=(11,13,20,20,80) P-value=.109
+
+Q2a. Null:B1=0
+     Alt:B1/=0
+Q2b. Null:B1=0
+     Alt: B1>0 or Alt: B1<0
+
+Q3a. Null: Age does not effect gLucose level.
+     Alt: Age impacts glucose level.
+     
+     t= 7.647
+     SE=0.09061
+     P-Value=6.21e-14
+     
+     We can reject the null hypothesis. The P-value is near zero, implying there is a significant relation between age      and glucose levels.
+     
+     The slope is weak and positive.
+     
+     R-squared:  0.07136, showing that about 7% of variance in the regression model can be explained by age.
+
+
+Q3b. 
+
+Q3c. 90% Confidence interval
+     Intercept {93.3663426 103.8985479}
+     Slope {0.5436953 0.8421429}
+
+Q4a. Null:Child height is independent of father height.
+     Alt. Child height is dependent on father height.
+     
+     t=9.337
+     SE=.04783
+     P-Vlaue= <2e-16
+     
+     We reject the null hypothesis.The p-calue is near zero, implying that there is a significant relation between          father height and child height.
+     
+     The slope is moderate and positive.
+     
+     R-squared: 0.154, showing that about 15% of the variance in the regression model can be explained by father            height.
+
+Q4b. 
+
+Q4c. 90% confidence interval
+     Intercept {32.9102458, 43.8149163}
+     Slope  {0.3677043, 0.5253409}
+

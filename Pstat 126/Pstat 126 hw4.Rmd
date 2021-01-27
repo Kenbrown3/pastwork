@@ -1,0 +1,44 @@
+---
+title: "Pstat 126 HW 4"
+author: "Kendall Brown"
+date: "November 11, 2017"
+output: pdf_document
+---
+
+Q1.The primary difference between linear and multiple regression is that multiple regression produces an output based on multiple prediction factors. 
+
+Q2.Multiple regression and linear regression are similar in that they each produce one outcome variable, they both use an equation to predict the value of the outcome variable, and the residuals, along with their summed squares, are calculated in the same way.
+
+Q5a.
+```{r}
+data(Auto,package = "ISLR")
+attach(Auto)
+autowt=Auto$weight
+pairs(mpg~autowt+horsepower,main="MPG by Weight and Horsepower")
+```
+Q5b&c.
+```{r}
+fitauto=lm(mpg~autowt+horsepower)
+summary(fitauto)
+```
+i.Mpg=45.6402108-.0057942(AutoWeight)-.0473029(Horsepower)
+
+ii.For each unit of weight and horsepower increase, the mpg of a car can expect a decrease of .0057942 and .0473029 respectively.
+
+iii.We observe an F statistic of 467.9 with a correlating p-value of approximately 0. From this we reject the null hypothesis that all slopes equal zero and we conclude that their is not enough evidence to reject the claim that mpg is independent of weight and horsepower. 
+
+iii.We observe a multiple R-squared value of .7064, implying that about 71% of the observed variance in mpg can be explained by horsepower and weight.
+
+iv.In reards to weight, we observe a t-value of -11.535 with a corresponding p-value of approximately 0. We reject the null hypothesis that the slope of the weight predictor variable is zero and conclude that there is not enough evidence to suggest that mpg is independent of vehicle weight.
+
+v.In reards to horsepower, we observe a t-value of -4.267 with a corresponding p-value of 0.0000249. We reject the null hypothesis that the slope of the horsepower predictor variable is zero and conclude that there is not enough evidence to suggest that mpg is independent of vehicle horsepower.
+
+Q6.
+```{r}
+plot(fitted(fitauto),residuals(fitauto),xlab="Predicted Mpg",ylab="Residuals",main="Residual Plot")
+abline(h=0)
+qqnorm(residuals(fitauto))
+qqline(residuals(fitauto))
+hist(residuals(fitauto),breaks=20)
+```
+From the residual plot we observe linearity with non-constant variance, from the QQplot and histogram we observe normality with skew towards lower values and potential outliers at the extreme values of 
