@@ -1,0 +1,234 @@
+---
+title: "Pstat 150 Lab D"
+author: "Kendall Brown"
+date: "November 26, 2017"
+output: pdf_document
+---
+
+```{r}
+drugt=read.table("C:/Users/kebro/Desktop/PSTAT 105/Drug Treatment.txt",header=T)
+library(survival)
+```
+Q1a.
+Looking at the data in R, I see that after day 519 most of the observations became censored with only a few outliers being observed in the 600+ day range.
+
+Q1b.
+```{r}
+dtc=Surv(drugt$Days,drugt$Censor)
+dsf=survfit(dtc~1)
+dsfs=summary(dsf)
+dsfs$surv
+plot(dsf,main="KM Estimator per Day",xlab="Days",ylab="KM Est.")
+```
+
+Q1b. 
+```{r}
+dsfecdf=1-dsfs$surv
+dsqt=quantile(dsfs$time,c(.25,.5,.75))
+dsqe=quantile(dsfs$surv,c(.25,.5,.75))
+plot(dsfs$time,dsfecdf,type="s",xlab="Days",ylab="ECDF",col="red")
+abline(h=dsqe,col=c("blue","yellow","green3"))
+dsqe
+dsqt
+```
+We have the .25, .5, and .75 quantiles of days to be 81, 167, and 276 respectively.
+
+Q1d.
+```{r}
+drugpre=subset(drugt,IVDrug=="Previous",data=drugt)
+drugrec=subset(drugt,IVDrug=="Recent",data=drugt)
+drugnev=subset(drugt,IVDrug=="Never",data=drugt)
+dtpc=Surv(drugpre$Days,drugpre$Censor)
+dtrc=Surv(drugrec$Days,drugrec$Censor)
+dtnc=Surv(drugnev$Days,drugnev$Censor)
+dspf=survfit(dtpc~1)
+dsrf=survfit(dtrc~1)
+dsnf=survfit(dtnc~1)
+dspfs=summary(dspf)
+dsrfs=summary(dsrf)
+dsnfs=summary(dsnf)
+dspqt=quantile(dspfs$time,c(.25,.5,.75))
+dsrqt=quantile(dsrfs$time,c(.25,.5,.75))
+dsnqt=quantile(dsnfs$time,c(.25,.5,.75))
+##.25,.5,.75 Quantiles for the previous, recent, and never observations in terms of time
+dspqt
+dsrqt
+dsnqt
+```
+
+Q1e.
+```{r}
+dspqe=quantile(dspfs$surv,c(.25,.5,.75))
+dsrqe=quantile(dsrfs$surv,c(.25,.5,.75))
+dsnqe=quantile(dsnfs$surv,c(.25,.5,.75))
+dspqe[1]
+dsrqe[1]
+dsrqe[1]
+##95% Conf int for KM estimator for previous IV users after 75% mark
+c(.295,.474)
+##95% Conf int for KM estimator for recent IV users after 75% mark
+c(.2508,.363)
+##95% Conf int for KM estimator for people that have never had an IV after 75% mark
+c(.255,.374)
+```
+From these confidence intervals, It can be said that there does not exist a significant differance between groups.
+Q2.
+```{r}
+lungt=read.table("C:/Users/kebro/Desktop/PSTAT 105/lung.txt",header=T)
+library(survival)
+```
+Q2a.
+```{r}
+lungsurv=Surv(lungt$time,abs(-1*lungt$status+1))
+lsf=survfit(lungsurv~1)
+lsfs=summary(lsf)
+plot(lsf,main="KM Estimation Per Day",xlab = "Days",ylab="KM Est.")
+```
+
+Q2b.
+```{r}
+summary(lsf)
+##95% conf int of KM estimator for 150 days
+c(.7421,.848)
+```
+
+Q2c.
+```{r}
+##95% conf int of median survival time
+lsf
+```
+we have a 95% conf int of {285,363}
+Q2d.
+```{r}
+lungmale=subset(lungt,lungt$sex==1)
+lungfemale=subset(lungt,lungt$sex==2)
+lungmalesf=Surv(lungmale$time,abs(-1*lungmale$status+1))
+lungfemalesf=Surv(lungfemale$time,abs(-1*lungfemale$status+1))
+lungmfs=survfit(lungmalesf~1)
+lungffs=survfit(lungfemalesf~1)
+plot(lungffs,main="Female KM Estimation Per Day",xlab = "Days",ylab="KM Est.")
+plot(lungmfs,main="Male KM Estimation Per Day",xlab = "Days",ylab="KM Est.")
+```
+From these plot it appears that women have higher survival rates seemingly along the entire
+
+Q2e. MvF median surv times
+```{r}
+lungmfs
+lungffs
+```
+From these confidence intervals and medians, I believe it is rather clear that women tend to survive longer than men. However, i do not believe that this tells the whole story as other factors not measured in this data set could be rather impactful to survival time.
+Q3.1,000,000 sims
+```{r}
+simexp=rexp(10^6)
+cossim=cos(simexp)
+cossim.7=(cossim>.7)/1
+cossim.7h=hist(cossim.7,breaks=c(0,.5,1))
+cossim.7p=cossim.7h$counts[2]/(10^6)
+cossim.7p ##Probability Cos(x)>.7
+##95% conf int for P(cos(x)>.7)
+c(cossim.7p-1.96*sqrt(cossim.7p*(1-cossim.7p)/(10^6)),
+  cossim.7p+1.96*sqrt(cossim.7p*(1-cossim.7p)/(10^6)))
+```
+
+Q4a.1000 runs of 50 sims
+```{r}
+n=50
+m=1000
+ex.test=rep(999,m)
+rnd.x=matrix(rep(999,50000),1000,50)
+for(j in 1:m){
+  rnd.x[j,]=c(rexp(n))
+  ex.test[j]=mean(rnd.x[j,])
+}
+hist(ex.test,breaks=30,col="red2",main="Hist from Simulation",xlab="Calculated Means")
+```
+
+Q4b. KS-test of samples
+```{r}
+kssim=rep(999,1000)
+for(j in 1:m){
+  ksdj=ks.test(rnd.x[j,],pexp)
+  kssim[j]=ksdj$statistic
+}
+histks=hist(kssim,breaks=30,main="Simulated KS-test Statistics",xlab="D Statistics",col="blue")
+```
+
+Q4c.
+```{r}
+quantile(kssim,.95)
+```
+
+Q4d.
+```{r}
+#computer ran a single batch in .16 seconds 
+#7200 secs in 2hrs means 45000 batches
+#to avoid time issues when knitting this block will be ## out
+
+#kssim2h=rep(999,m)
+#rnd2h.x=matrix(rep(999,50000),1000,50)
+#batch=matrix(rep(999,4.5e+07),45000,1000)
+#for(j in 1:45000){
+#for(k in 1:m){
+  #rnd2h.x[k,]=c(rexp(n))
+  #ex.test[k]=mean(rnd2h.x[k,])
+  #ksdj2h=ks.test(rnd2h.x[k,],pexp)
+  #kssim2h[k]=ksdj2h$statistic
+  #batch[j,]=kssim2h
+#}}
+```
+
+```{r}
+#sim2h=quantile(batch,.95)
+#sim2h
+```
+To avoid problems during knitting, I am stating the calculated simulation .95 quantile to be .1884515.
+
+Q4e.Crit value from Stephens table 1.4
+```{r}
+(.1884515-.2/50)*(sqrt(50)+.26+.5/sqrt(50))
+```
+From this calculation we get a T value that corresponds to the <1% level.  
+
+Q5a.
+```{r}
+library(MASS)
+ofsd=sd(geyser$waiting)
+ofsd ##sample standard deviation of geyser data set
+```
+
+Q5b.
+```{r}
+geysermat=rep(999,1000)
+for(j in 1:1000){
+sampof=sample(geyser$waiting,299,replace = T)
+geysermat[j]=sd(sampof)
+}
+(sd(geysermat))^2
+```
+
+Q5c.
+```{r}
+geyseriqr=rep(999,1000)
+for(j in 1:1000){
+sampofiqr=sample(geyser$waiting,299,replace = T)
+geyseriqr[j]=IQR(sampofiqr)
+}
+(sd(geyseriqr))^2
+```
+
+Q5d.
+```{r}
+geysermad=rep(999,1000)
+for(j in 1:1000){
+sampofmad=sample(geyser$waiting,299,replace = T)
+geysermad[j]=mad(sampofmad)
+}
+(sd(geysermad))^2
+```
+
+```{r}
+hist(geysermat,breaks=100)
+hist(geyseriqr,breaks=100)
+hist(geysermad,breaks=100)
+```
+Based on the histograms of the standard deviation estimates, the SD function has the most normaly distributed data. As such, personally, i prefer the sd function over the other two estimation functions.

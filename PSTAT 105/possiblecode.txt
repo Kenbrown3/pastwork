@@ -1,0 +1,3 @@
+lines(density(eq.time,bw="nrd",kernel="gaussian",from = 0,to=86400),col="tan",lw=3)
+lines(density(eq.time,bw="ucv",kernel="gaussian",from = 0, to=86400),col="red",lw=3) 
+lines(density(eq.time,bw="SJ",kernel="gaussian",from = 0, to=86400),col="blue",lw=3) 
