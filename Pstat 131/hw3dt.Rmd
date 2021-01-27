@@ -1,0 +1,82 @@
+---
+title: "Untitled"
+author: "Kendall Brown"
+date: "2/19/2018"
+output: pdf_document
+---
+
+```{r}
+library(tidyverse)
+library(tree)
+library(plyr)
+library(randomForest)
+library(class)
+library(rpart)
+library(maptree)
+library(ROCR)
+```
+```{r}
+spam <- read_table2("C:/Users/kebro/Desktop/Pstat 131/homework2/spambase.tab", guess_max=2000)
+spam <- spam %>% 
+  mutate(y = factor(y, levels=c(0,1), labels=c("good","spam"))) %>% 
+  mutate_at(.vars=vars(-y), .funs=scale)
+```
+```{r}
+calc_error_rate <- function(predicted.value, true.value){
+return(mean(true.value!=predicted.value))
+}
+```
+```{r}
+records = matrix(NA, nrow=3, ncol=2)
+colnames(records) <- c("train.error","test.error")
+rownames(records) <- c("knn","tree","logistic")
+```
+```{r}
+set.seed(2)
+test.indices = sample(1:nrow(spam), 1000)
+spam.train=spam[-test.indices,]
+spam.test=spam[test.indices,]
+```
+```{r}
+nfold = 9
+set.seed(2)
+folds = seq.int(nrow(spam.train)) %>% ## sequential obs ids
+cut(breaks = nfold, labels=FALSE) %>% ## sequential fold ids
+sample ## random fold ids
+```
+
+1.
+```{r}
+do.chunk <- function(chunkid, folddef, Xdat, Ydat, k){
+train = (folddef!=chunkid)
+Xtr = Xdat[train,]
+Ytr = Ydat[train]
+Xvl = Xdat[!train,]
+Yvl = Ydat[!train]
+## get classifications for current training chunks
+predYtr = knn(train = Xtr, test = Xtr, cl = Ytr, k = k)
+## get classifications for current test chunk
+predYvl = knn(train = Xtr, test = Xvl, cl = Ytr, k = k)
+data.frame(train.error = calc_error_rate(predYtr, Ytr),
+val.error = calc_error_rate(predYvl, Yvl))
+}
+```
+```{r}
+kvec = c(1, seq(10, 50, length.out=9))
+error.mat=matrix(c(rep(0,20)),nrow=10,ncol=2)
+for(j in 1:10){
+    error=ldply(1:9,do.chunk,folds,select(spam.train,-y),spam.train$y,k=kvec[j])
+    error.mat[j,1]=mean(error$train.error)
+    error.mat[j,2]=mean(error$val.error)
+}
+error.mat
+```
+```{r}
+error.mat[,2]
+min(error.mat[,2])
+best.kfold=kvec[match(min(error.mat[,2]),error.mat[,2])]
+best.kfold
+```
+```{r}
+error=ldply(1:9,do.chunk,folds,select(spam.train,-y),spam.train$y,k=kvec[10])
+```

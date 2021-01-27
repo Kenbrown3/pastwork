@@ -1,0 +1,30 @@
+---
+title: "Untitled"
+author: "Joyce Wong"
+date: "February 8, 2018"
+output: pdf_document
+---
+
+```{r}
+lab.data=read.csv("C:/Users/kebro/Downloads/Lab4.csv")
+names(lab.data)[names(lab.data)=="ï..I"]="I"
+```
+```{r}
+lab.fit=lm(V~I,data=lab.data)
+summary(lab.fit)
+plot(V~I,data=lab.data,xlab="Current(mA)",ylab="Voltage(V)")
+abline(lab.fit)
+paste('y =', coef(lab.fit)[[2]], '* x', '+', coef(lab.fit)[[1]])
+```
+
+```{r}
+lab.data.diode=read.csv("C:/Users/kebro/Downloads/Lab4diode.csv")
+names(lab.data.diode)[names(lab.data)=="ï..I"]="I"
+```
+```{r}
+lab.fit.d=lm(V~I,data=lab.data.diode)
+summary(lab.fit.d)
+plot(V~I,data=lab.data.diode,xlab="Current(mA)",ylab="Voltage(V)")
+abline(lab.fit.d)
+paste('y =', coef(lab.fit.d)[[2]], '* x', '+', coef(lab.fit.d)[[1]])
+```

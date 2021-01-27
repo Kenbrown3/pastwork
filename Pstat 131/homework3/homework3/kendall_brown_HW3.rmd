@@ -1,0 +1,89 @@
+---
+title: "Pstat 131 Homework 3"
+author: "Kendall Brown 8564403"
+date: "Winter 2018"
+output: pdf_document
+---
+```{r}
+library(tidyverse)
+library(e1071)
+library(cluster)
+library(NbClust)
+library(bmp)
+library(imager)
+library(tree)
+library(randomForest)
+library(gbm)
+library(ROCR)
+```
+1a. In a sample of size n, the probability that the jth observation is not in the bootstrap is the product of
+the probability that each observation in the bootstrap is not the jth element of the sample. If each element
+has probability 1
+n of being in the bootstrap, then each element has probability $(1 ??? \frac{1}{n})$ of not being in the
+bootstap. Thus the probability that the jth observation is not in the bootstrap is
+$(1 ??? \frac{1}{n})^n$
+
+1b. Probability when n=1000
+```{r}
+(1-1/1000)^1000
+```
+
+1c. Resampling numbers from 1 to 1000, then calculating observed probability that an element is not part of
+the bootstrap sample.
+```{r}
+set.seed(300)
+n.1c=c(1:1000)
+sample.1c=sample(n.1c,1000,replace = T)
+sample.1c.unique=unique(sample.1c)
+p.n.1c=length(sample.1c.unique)/1000
+1-p.n.1c
+```
+
+Setting the seed to be 300, I observe that the probability of an element not being in the bootstrap is .366.
+
+1d. Basketball shot field goal precentage.
+```{r}
+n.1d=c(rep(1:50),rep(0:51))
+fgp.1d=rep(0,1000)
+for(i in 1:1000){
+sample.1d=sample(n.1d,101,replace=T)
+fgp.1d[i]=mean(sample.1d)/101
+}
+```
+
+Histogram of Field Goal Percentages from a bootstrap sample of 101 shots. Overlayed with normality curve
+and 95% confidence interval.
+```{r}
+fgp.ci=quantile(fgp.1d,probs=c(.025,.975))
+hist(fgp.1d,breaks=15,col="red",
+main="FGPs over 101 Shots with Normality curve and 95% C.I.",
+xlab="Field Goal Percentage",probability = T)
+curve(dnorm(x,mean(fgp.1d),sd(fgp.1d)),add=T,col="blue")
+abline(v=fgp.ci,col="blue")
+```
+From the histogram and overlayed gausian curve, we see a strong indication of normality with little skew.
+95% confidence interval for Rober Covington's FGP
+
+```{r}
+fgp.ci#95% confidence Interval
+```
+
+```{r}
+fgp.ci.9999=quantile(fgp.1d,probs=c(.9999))#Upper 99.99% confidence bound of FGPs
+fgp.ci.9999
+```
+
+From this 95% confidence interval I must assume that Robert Covington's FGP will fall by the end of the
+competitive season. As of now he is shooting well beyond the realm of expectation with an average of .495.
+Such a value dwarfs the 99.99% confidence bound of .299 and should be viewed as a statistical outlier.
+
+```{r}
+seeds = read.table(
+  'http://archive.ics.uci.edu/ml/machine-learning-databases/00236/seeds_dataset.txt')
+names(seeds) = c('area', 'perimeter', 'compactness', 'length',
+'width', 'asymmetry', 'groovelength', 'type')
+seeds.label = factor(seeds$type)
+seeds.orig = seeds[,-ncol(seeds)]
+seeds = scale(seeds.orig)
+seeds = as.data.frame(seeds)
+```

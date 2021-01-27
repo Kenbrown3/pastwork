@@ -1,0 +1,79 @@
+---
+title: "Homework Assignment"
+author: "Team Member1 and Team Member2"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output: pdf_document
+---
+
+
+```{r setup, echo=FALSE}
+library(knitr)
+# set global chunk options: images will be 7x5 inches
+knitr::opts_chunk$set(fig.width=7, fig.height=5)
+options(digits = 4)
+
+
+## indents are for indenting r code as formatted text
+## They may need to be adjusted depending on your OS
+# if your output looks odd, increase or decrease indent
+indent1 = '    '
+indent2 = '        '
+indent3 = '            '
+```
+
+
+1. Write an `R` function that returns the following dispersion measures:
+    * Estimator of standard deviation (SD):
+
+        $$\text{SD} = \sqrt{\frac{1}{n}\sum_{i=1}^{n}(x_{i} - \bar{x})^2}$$
+```{r sd-function, indent=indent2}
+s.d <- function(x){
+    n <- length(x) # Sample size
+    s2 <- sum((x - mean(x))^2)/(n-1) # sample variance
+    s.d <- sqrt(s2) # sample standard deviation 
+    return(s.d)
+}
+```
+    * Estimator of mean absolute deviation (MAD):
+
+        $$\text{MAD} = \frac{1}{n}\sum_{i=1}^{n}|x_{i} - \bar{x}|$$
+```{r mad-function, indent=indent2}
+mean.abs.d <- function(x){
+    n <- length(x) # Sample size
+    m <- sum(abs(x - mean(x)))/n # mean average deviation
+    return(m)
+}
+```
+
+2. Construct box-plots, histograms, QQ-plots and kernel density estimates for
+   these variables. Comment on features such as the distribution and outliers
+   in these plots.  
+   _When asked to construct a graph, you should always precede your graph by
+   the R command/function that generated it properly annotated._
+  
+```{r age-data, out.width='0.4\\linewidth', fig.show='hold', indent=indent1}
+library(MASS)
+pima2 = rbind(Pima.tr, Pima.tr2, Pima.te)
+
+x = pima2$age
+var.name = 'age'
+```
+
+
+```{r, out.width='50%', fig.show='hold', indent=indent1}
+library(ggplot2)
+
+ggplot(pima2, aes(x=age)) + geom_histogram()
+
+ggplot(pima2, aes(x = factor(0), y = age)) + geom_boxplot() + xlab("") +
+    scale_x_discrete(breaks = NULL) + coord_flip()
+
+y     <- quantile(pima2$age, c(0.25, 0.75)) # Find the 1st and 3rd quartiles
+x     <- qnorm( c(0.25, 0.75))         # Find the matching normal values on the x-axis
+slope <- diff(y) / diff(x)             # Compute the line slope
+int   <- y[1] - slope * x[1]           # Compute the line intercept
+
+ggplot(pima2, aes(sample=age)) + stat_qq() + 
+    geom_abline(intercept=int, slope=slope, color='red')
+
+```

@@ -1,0 +1,41 @@
+---
+title: "Pstat 174 HW2"
+author: "Kendall Brown 8564403"
+date: "Winter 2018"
+output: pdf_document
+---
+1iii.
+```{r}
+set.seed(300)
+ma.1=arima.sim(model=list(ma=c(-.5),sd=1),n=200)
+op = par(mfrow = c(1,2))
+plot(ma.1,type = "h",
+  main = expression("Plot of"~"X"[t]),
+  col = "red",
+  ylab = expression("X"[t]),
+  xlab = "t")
+acf(ma.1,lag.max = 20,
+  main = "Sample ACF",
+  ylim = c(-1,1),
+  xlab = "h",
+  ylab = expression(hat(rho)[X](h)))
+acf(ma.1,lag.max = 20,plot=F)
+par(op)
+```
+We observe a value of -.373 for $\rho_x(1)$. As expected we did not observe exactly -.4 since we are only estiating the ACF from a sample of 200.
+
+3iii.
+```{r}
+set.seed(300)
+ma.2=arima.sim(model=list(ma=c(-2,8),sd=1),n=300)
+acf(ma.2,lag.max = 20,
+  main = "Sample ACF",
+  ylim = c(-1,1),
+  xlab = "h",
+  ylab = expression(hat(rho)[X](h)))
+acf(ma.2,lag.max=20,plot = F)
+ma.2.30000=arima.sim(model=list(ma=c(-2,8),sd=1),n=30000)
+acf(ma.2.30000,lag.max=20,plot = F)
+```
+With n=300 weobserve $\rho_x(1)$ to be -.149 and $\rho_x(2)$ to be .082. 
+With n=30000 we observe $\rho_x(1)$ to be -.256 and $\rho_x(2)$ to be .108.

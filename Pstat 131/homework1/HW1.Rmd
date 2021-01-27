@@ -1,0 +1,257 @@
+---
+title: "Homework 1"
+author: "Kendall Brown 8564403"
+date: "Fall 2018"
+output: pdf_document
+---
+
+```{r}
+algae = read.table("algae.txt", header=T, na.strings="NA")
+library(dplyr)
+```
+
+1abc. Counting observations of algae and comparing mean v median and variance v MAD.
+```{r}
+#1a.
+Datasum=summarise(algae,count=n)
+Datasum##number of obs in algae data set
+#1b.
+?summarise
+?summarise_all
+?summarise_at
+w=algae%>%summarise_at(c(6:11),mean,na.rm=T)
+w
+x=algae%>%summarise_at(c(6:11),var,na.rm=T)
+x
+y=algae%>%summarise_at(c(6:11),median,na.rm=T)
+y
+z=algae%>%summarise_at(c(6:11),mad,na.rm=T)
+z
+w>y ##Test if mean > median
+x>z ##Test if var > mad
+```
+What stands out most is that some chemicals have a rather large variance. Additionally each chemical seems to vary in mean quite significantly as well.
+1c.
+The constant in the mad() function ensures consistency when calculating the median of a data set.
+
+2abc. Altered histogram and boxplot of algae data set.
+```{r, warning=FALSE}
+library(ggplot2)
+ggplot(algae,aes(Chla,..density..))+
+  geom_histogram(na.rm=T)+
+  geom_density(na.rm = T)+
+  geom_rug(aes(Chla),na.rm=T,inherit.aes = F)
+ggplot(algae,aes(season,a1))+
+  geom_boxplot(na.rm=T,fill=c("brown2","green3","yellow","lightblue"))+
+  labs(title="Conditioned Boxplot of Algae")
+```
+2d.
+```{r}
+mnO2.bp=ggplot(algae,aes(season,mnO2))+
+  geom_boxplot(na.rm=T,fill=c("brown","green3","yellow","lightblue"))
+Cl.bp=ggplot(algae,aes(season,Cl))+
+  geom_boxplot(na.rm=T,fill=c("brown","green3","yellow","lightblue"))
+mnO2.bp
+Cl.bp
+```
+```{r}
+algae.aut.out=sum(algae[algae$season=='autumn',]$Cl>=140,na.rm=T)
+total.out=algae.aut.out
+algae.spr.out=sum(algae[algae$season=='spring',]$Cl>=140,na.rm=T)
+total.out=total.out+algae.spr.out
+algae.smr.out=sum(algae[algae$season=='summer',]$Cl>=100,na.rm=T)
+total.out=total.out+algae.smr.out
+algae.wnt.out=sum(algae[algae$season=='winter',]$Cl>=100,na.rm=T)
+total.out=total.out+algae.wnt.out
+total.out
+```
+From the above boxplots we observe 2 seasonal outliers during the summer and winter when measuring mn02, and an additional 7 seasonal outliers when measuring Cl. Boxplots are a good way of finding outliers as they isolate the values that are significantly above or below the data set mean.
+
+2e.Comparing mean v median and var v MAD
+```{r}
+w1=algae%>%summarise_at(c(9,10),mean,na.rm=T)
+w1##Mean of oPO4 and PO4
+x1=algae%>%summarise_at(c(9,10),var,na.rm=T)
+x1##Var of oPO4 and PO4
+y1=algae%>%summarise_at(c(9,10),median,na.rm=T)
+y1##Median of oPO4 and PO4
+z1=algae%>%summarise_at(c(9,10),mad,na.rm=T)
+z1##MAD of oPO4 and PO4
+```
+We clearly see that the mean and median, along with the variance and mad, differ greatly. This implies that outliers are providing a rather significant skew when calculating the mean and variance of the two chemicals.
+
+3a.Number of observations with missing values
+```{r}
+na.test=is.na(algae)
+colSums(na.test)
+```
+We observe that 4 variables have missing values. mxPh and mnO2 have 1 missing value each, Cl has 7 missing values, and Chla has 8 missing values.
+
+3b.Removing observations with missing values with filter()
+```{r}
+algae.del=filter(algae,is.na(mxPH)==0&is.na(mnO2)==0&is.na(Cl)==0&is.na(Chla)==0)
+algae.cc=complete.cases(algae.del)
+sum(algae.cc)
+```
+Algae.del is a data set with 169 complete cases.
+3c.Imputing unknowns with measures of central tendency
+```{r}
+algae.mean=algae
+for(j in c(1:180)){
+for(i in c(4:12)){
+  pre.am=as.data.frame(algae[j,i])
+  pre.algae.mean=mutate_if(pre.am,is.double,funs(ifelse(is.na(pre.am),mean(algae[,i],na.rm=T),algae[j,i])))
+  algae.mean[j,i]=pre.algae.mean
+}
+}
+summarise(algae.mean, count=n)
+algae.mean[c(70,117,180),4:12]
+```
+3d. Imputing unknowns using correlation 
+```{r}
+cor(algae[,4:12],use="complete.obs")
+fit1=lm(Chla~mxPH,data=algae)
+coefficients(fit1)
+predict(fit1,data.frame(mxPH=c(5.7,6.5,6.6,7.83,9.7)))
+#Obtained values when mxPH is measured to be 5.7,6.5,6.6,7.83,and 9.7 
+```
+These are odd numbers to obtain since some of them are negative.
+
+4a. Partitioning of data set algae.mean 
+```{r}
+set.seed(10)
+cut.id=cut(1:180,6,labels = F)
+cut.id.rand=sample(cut.id,180)
+algae.sample.id=cut(cut.id.rand,6,labels=F)
+```
+4b. 6 fold cross validation
+```{r}
+library(plyr)
+do.chunk <- function(chunkid, chunkdef, dat){ # function argument
+train = (chunkdef != chunkid)
+Ytr = dat[train,]$a1 # get true response values in training set
+Yvl = dat[!train,]$a1 # get true response values in validation set
+lm.a1 <- lm(a1~., data = dat[train,])
+predYtr = predict(lm.a1) # predict training response values
+predYvl = predict(lm.a1,dat[!train,]) # predict validation values
+data.frame(fold = chunkid,
+train.error = mean((predYtr - Ytr)^2), # compute and store training errors
+val.error = mean((predYvl - Yvl)^2)) # compute and store validation errors
+}
+cv.6f=ldply(1:6,do.chunk,algae.sample.id,algae.mean)
+cv.6f
+```
+5.Testing algae.test file.
+```{r}
+algaeTest = read.table("algae-test.txt", header=T, na.strings="NA")
+```
+```{r}
+val.error.avg=mean(cv.6f[,3])
+val.error.avg##average of valuation error
+```
+```{r}
+lm.a1.2=lm(a1~.,data=algae.mean)
+```
+```{r}
+a1.test.pred=predict(lm.a1.2,algaeTest)
+a1.test.pred
+```
+```{r}
+train.error.test=mean((a1.test.pred-algaeTest$a1)^2,na.rm=T)
+train.error.test##test error from algaeTest
+val.error.avg##Test error from 6 fold C.V
+```
+The test error of the two data sets are rather similar but still vary slightly. Considering the number of predictor variables, their possible interactions, and total observations, this result is expected.
+
+6a.
+```{r}
+library(ISLR)
+data(Carseats)
+attach(Carseats)
+```
+
+```{r}
+ggplot(Carseats,aes(Income,Sales))+
+  geom_point()+
+  geom_smooth()
+```
+  From this plot there does not appear to be a significantly large relation between sales and income. This matches my intuition as I believe child car seats are long lasting and are often reused between children. I believe carseats are seldomly repeatingly purchased by individual customers unless required. I assume carseat sales have more to do with measurements related to the number of children in a given area than it does with income.
+
+6b. Fitting linear models to the p-th degree of Income and running a 6 fold C.V
+```{r}
+fit.sales.inc=lm(Sales~poly(Income,10,raw=F),data=Carseats)
+summary(fit.sales.inc)
+```
+
+```{r}
+set.seed(10)
+cut.id.5=cut(1:400,6,labels = F)
+cut.id.rand.5=sample(cut.id.5,400)
+carseats.sample.id=cut(cut.id.rand.5,6,labels=F)
+carseats.mut=mutate(Carseats,SampleID=carseats.sample.id)
+```
+
+6 Fold Cross Validation Function
+```{r}
+do.chunk5 <- function(chunkid, chunkdef, dat, p){# function argument
+train = (chunkdef != chunkid)
+res = data.frame(degree=integer(), fold=integer(),
+train.error=double(), val.error=double())
+if (p==0) {
+## Your code here
+  Ytr.5=dat[train,]$Sales
+  Yvl.5=dat[!train,]$Sales
+## Fit an intercept only model to the data.
+## Using poly(Income, degree=0) will cause an error
+  sales.incp=lm(Sales~1,data=dat[train,])
+  PYtr.5=predict(sales.incp,dat[train,])
+  PYvl.5=predict(sales.incp,dat[!train,])
+## Update residual
+    res = data.frame(degree=p, fold=chunkid,
+    train.error=mean((PYtr.5-Ytr.5)^2),
+    val.error=mean((PYvl.5-Yvl.5)^2))
+    res
+} else {
+## Your code here
+  Ytr.5=dat[train,]$Sales
+  Yvl.5=dat[!train,]$Sales
+## Fit a polynomial regression or order p.
+## Use poly(Income, degree=p, raw=FALSE)
+  sales.incp=lm(Sales~poly(Income,p),data=dat[train,])
+  PYtr.5=predict(sales.incp,dat[train,])
+  PYvl.5=predict(sales.incp,dat[!train,])
+## Update residual
+  res = data.frame(degree=p, fold=chunkid,
+  train.error=mean((PYtr.5-Ytr.5)^2),
+  val.error=mean((PYvl.5-Yvl.5)^2))
+  res
+}
+}
+```
+
+Returning each CV of carseats data set
+```{r}
+cvlist=c()
+mve=rep(0,11)
+mte=rep(0,11)
+for(i in c(0:10)){
+cv.6f.carseats=ldply(1:6,do.chunk5,carseats.sample.id,Carseats,i)
+mve[i+1]=mean(cv.6f.carseats$val.error)
+mte[i+1]=mean(cv.6f.carseats$train.error)
+print(cv.6f.carseats)
+cvlist=append(cvlist,cv.6f.carseats)
+}
+```
+Couldnt figure out how to make the ldply function calculate different values of p in addition to chunkid. Eventually I nested it in a for loop to get the required results.
+
+Plotting average Traing and Validation error
+```{r}
+plot(c(0:10),mte,col="red",type="b",ylim = c(6,10),
+     main="Plot of Training and Validation Error",xlab="Degree",
+     ylab=" Mean of Training and Validation Error")
+lines(c(0:10),mve,col="blue",type="b")
+     legend("topright",legend = c("Mean Training Error","Mean Validation Error"),pch=c(1,1),col=c("red","blue"))
+```
+From this plot I see that the training error related to this data set decreases, and validation error increases, slightly with higher degree polynomials.
+
+Based on the graph, I would choose the first degree of the polynomial. The reason being that it has the smallest average validation error.

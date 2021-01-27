@@ -1,0 +1,33 @@
+---
+
+title: "PSTAT 174 HW4"
+author: "Kendall Brown"
+date: "Winter 2018"
+output: pdf_document
+---
+
+```{r}
+acc.death=read.table("C:/Users/kebro/Desktop/Pstat 174/deaths .txt",header =F)
+acc.death.ts=ts(acc.death)
+plot.ts(acc.death.ts)
+acf(acc.death.ts)
+pacf(acc.death.ts)
+mean(acc.death.ts)
+var(acc.death.ts)
+```
+From the time series plot we see a constant mean with seasonal variance.
+From the ACF we observe oscilation which implies an auto-regressive model.
+From the PACF we observe spikes at lags 3,6,9, 11, and 13.
+
+```{r}
+acc.death.diff=diff(acc.death.ts,12)
+plot.ts(acc.death.diff)
+mean(acc.death.diff)
+var(acc.death.diff)
+acf(acc.death.diff)
+pacf(acc.death.diff)
+```
+With mean -171 and variance 288714 we see the detrended and non-seasonal transform of the data.
+From the ACF we observe oscilation with no decay implying an auto-regressive model.
+From the PACF we observe a single spike at lag 2.
+Differencing to remove seasonality was a good idea as it decreased observed variance by a more than significant amount. 

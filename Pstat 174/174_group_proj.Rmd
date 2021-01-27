@@ -1,0 +1,163 @@
+---
+title: "PSTAT 174 Project"
+author: "Group: Theta"
+date: "Winter 2018"
+output: pdf_document
+---
+```{r, message=FALSE, warning=FALSE}
+library(forecast)
+library(qpcR)
+library(MASS)
+library(car)
+```
+Creating and transforming data set.
+```{r}
+sp500=read.csv("C:/Users/kebro/Desktop/Pstat 174/sp500monthly.csv",header=T)
+sp500.close=ts((sp500$Close),frequency = 12,start=c(2000,1))#creating time series data-set
+sp500.close.bc=boxcox(sp500.close ~ as.numeric(1:length(sp500.close)))
+sp500.close.log10=log10(sp500.close)#log10 transform data
+sp500.close.sqrt=sqrt(sp500.close)#sqrt transformed data
+lambda=sp500.close.bc$x[which(sp500.close.bc$y==max(sp500.close.bc$y))]
+lambda
+sp500.close.tr=(1/lambda)*(sp500.close^lambda-1)#box-cox transformed data
+```
+Plotting each transform
+```{r}
+op=par(mfrow=c(2,2))
+plot.ts(sp500.close,main="S&P 500 Index",xlab="Time",ylab="Index Price")
+ts.plot(sp500.close.tr,main="Box-Cox Transform")
+ts.plot(sp500.close.log10,main="Log10 Transform")
+ts.plot(sp500.close.sqrt,main="Square Root Transform")
+par(op)
+```
+No distinct diference between each data set. Transforming the data has no real effect. Thus we choose original dataset for all further analysis.
+
+ACF and PACF of original data set
+```{r}
+op=par(mfrow=c(1,2))
+acf(sp500.close)
+pacf(sp500.close)
+par(op)
+```
+
+Differencing the data set once to remove trend.
+```{r}
+sp500.diff1=diff(sp500.close,1)
+var(sp500.diff1)
+sp500.diff2=diff(sp500.close,2)
+var(sp500.diff2)
+sp500.diff3=diff(sp500.close,3)
+var(sp500.diff3)
+ts.plot(sp500.diff1,ylab="S&P 500 Detrended")
+```
+Differencing once results in least amount of variance in the data set. We choose a d=1 to be our differencing parameter.
+
+ACF and PACF of detrended data
+```{r}
+op=par(mfrow=c(1,2))
+acf(sp500.diff1)
+pacf(sp500.diff1)
+par(op)
+```
+
+Creating a matrix of values from which we brute force our way to an ideal ARIMA model
+```{r}
+sp500.AICcs=matrix(NA, nr = 6, nc = 6)
+dimnames(sp500.AICcs) = list(p=0:5, q=0:5)
+```
+```{r}
+for(p in 0:5){
+  for(q in 0:5){
+    sp500.AICcs[p+1,q+1] = AICc(arima(sp500.diff1, order = c(p,0,q), method="ML",optim.control = list(maxit=1000)))
+  }}
+```
+```{r}
+sp500.AICcs
+```
+```{r}
+sp500.AICcs==min(sp500.AICcs)
+```
+Find ARIMA(1,0,1) to be ideal for this method
+
+Using auto.arima function to calculate another potential model
+```{r}
+sp500.arima=auto.arima(sp500.close,max.p = 20,max.q=20)
+summary(sp500.arima)
+```
+Arive at ARIMA(1,2,1)(1,0,2)[12]. Despite having a slightly larger AICc we choose this model as it accounts for seasonality.
+
+
+Residual Testing of Chosen Model
+```{r}
+sp500.arima.residuals=sp500.arima$residuals
+Box.test(sp500.arima.residuals,lag=20,type="Ljung-Box")
+shapiro.test(sp500.arima.residuals)
+```
+Fails shapiro wilk test due to outlier
+
+Residual diagnostic plots imply potential normality with outliers. Histogram is overlayed with a gausian curve, qq-normailty plot overlayed with 95% confidence intervals.
+```{r}
+ts.plot(sp500.arima.residuals,main="Fitted Residuals")
+op=par(mfrow=c(1,2),oma=c(0,0,2,0))
+acf(sp500.arima.residuals,main="Autocorrelation")
+pacf(sp500.arima.residuals,main="Partial Autocorrelation")
+hist(sp500.arima.residuals,main="Histogram",breaks=20,xlab="Residual Values",probability = T)
+curve(dnorm(x,mean=mean(sp500.arima.residuals),sd=sd(sp500.arima.residuals)),add=T)
+qqPlot(sp500.arima.residuals,xlab="Theoretical Quantiles",ylab="Sample Quantiles")
+title("Fitted Residuals Diagnostics",outer=T)
+par(op)
+```
+Histogram shows mild skew and significant kurtosis, several points are outside the qq-plots conf-int. 
+
+
+Removing single outlier with lowest value and rerunning tests.
+```{r}
+sp500.arima.residuals.no_outlier=sp500.arima$residuals[sp500.arima$residuals>min(sp500.arima$residuals)]
+Box.test(sp500.arima.residuals.no_outlier,lag=20,type="Ljung-Box")
+shapiro.test(sp500.arima.residuals.no_outlier)
+```
+Normality assumption confirmed when lowest value residual is removed
+
+Diagnostic plots w/o most extreme outlier.
+```{r}
+ts.plot(sp500.arima.residuals.no_outlier,main="Fitted Residuals w/o Outlier")
+op=par(mfrow=c(1,2),oma=c(0,0,2,0))
+acf(sp500.arima.residuals.no_outlier,main="Autocorrelation")
+pacf(sp500.arima.residuals.no_outlier,main="Partial Autocorrelation")
+hist(sp500.arima.residuals.no_outlier,main="Histogram",
+     breaks=20,xlab="Residual Values",probability = T)
+curve(dnorm(x,mean=mean(sp500.arima.residuals.no_outlier),
+            sd=sd(sp500.arima.residuals.no_outlier)),add=T)
+qqPlot(sp500.arima.residuals.no_outlier,xlab="Theoretical Quantiles",ylab="Sample Quantiles")
+title("Fitted Residuals Diagnostics w/o Outlier",outer=T)
+par(op)
+```
+Histogram still shows kurtosis, qq-plot shows stronger normality despite a couple of outliers.
+
+Forecast of S&P 500 with an 80% and 95% confidence interval. values of highs and lows for each level given on a monthly basis.
+```{r}
+sp500.forecast=forecast(sp500.arima,h=10,level=c(.8,.9))
+sp500.forecast
+plot(sp500.forecast,ylab="Index Price",xlab="Time",main="Forecast of S&P 500 Index")
+```
+Forecast of Percentage Growth from February
+```{r}
+plot(sp500.forecast$mean/sp500.close[218]-1,ylim=c(-.15,.25),
+     main="S&P 500 Forecatsed Percentage Growth from February 1, 2018",col="black",
+     ylab="Percentage Growth")
+lines(sp500.forecast$lower[,1]/sp500.close[218]-1,col="red",lty=6)
+lines(sp500.forecast$upper[,1]/sp500.close[218]-1,col="red",lty=6)
+lines(sp500.forecast$lower[,2]/sp500.close[218]-1,col="blue",lty=2)
+lines(sp500.forecast$upper[,2]/sp500.close[218]-1,col="blue",lty=2)
+legend("topleft",legend=c("Mean","80% Confidence Interval","95% Confidence Interval"),lty=c(1,6,2),col=c("black","red","blue"))
+```
+```{r}
+plot(sp500.forecast$mean/sp500.close[218]-1,ylim=c(-.15,.25),
+     main="S&P 500 Forecatsed Percentage Growth from February 1, 2018",col="black",
+     ylab="Percentage Growth")
+lines(sp500.forecast$lower[,1]/sp500.close[218]-1,col="red",lty=6)
+lines(sp500.forecast$upper[,1]/sp500.close[218]-1,col="red",lty=6)
+lines(sp500.forecast$lower[,2]/sp500.close[218]-1,col="blue",lty=2)
+lines(sp500.forecast$upper[,2]/sp500.close[218]-1,col="blue",lty=2)
+legend("topleft",legend=c("Mean","80% Confidence Interval","95% Confidence Interval"),lty=c(1,6,2),col=c("black","red","blue"))
+```

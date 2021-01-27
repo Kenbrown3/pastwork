@@ -1,0 +1,41 @@
+---
+title: "Questions 3, 4, and 5"
+author: "Kendall Brown"
+date: "January 29, 2018"
+output: pdf_document
+---
+
+3a.
+```{r}
+Zt=rnorm(300)
+plot(Zt, main="Plot of Time Series", type='l')
+Ztacf=acf(Zt,plot=F)
+plot(Ztacf,main="Plot of Auto Covariance Function")
+```
+3b.
+```{r}
+Y=Zt^2
+plot(Y, main="Plot of Time Series Y=Zt^2", type='l')
+Yacf=acf(Y,plot=F)
+plot(Yacf,main="Plot of Auto Covariance Function Y=Zt^2")
+```
+
+3c. The acf of Y and Zt appear to be similar enogh to be from a gausian white noise function with both functions being stationary.
+However, one stark difference of the Y acf function is that the values appear to vary less implying that Y could very well come from a non-gausian distribution. 
+
+4b.
+```{r}
+matA=matrix(c(6,4,-2,1,-1,2,-2,1,-1),3,3,byrow=TRUE)
+matA
+matB=matrix(c(2,-1,0),3,1)
+matB
+matAin=solve(matA)
+matAin
+matAin%*%matB
+```
+
+5.
+```{r}
+polyroot(c(1,-2))
+polyroot(c(1,-.45,.05))
+```

@@ -1,0 +1,201 @@
+---
+title: "Pstat 131 Homework 2"
+author: "Kendall Brown 8564403"
+date: "Winter 2018"
+output: pdf_document
+---
+
+```{r echo=FALSE, results='hide',message=FALSE}
+library(tidyverse)
+library(tree)
+library(plyr)
+library(randomForest)
+library(class)
+library(rpart)
+library(maptree)
+library(ROCR)
+```
+```{r echo=FALSE, results='hide',message=FALSE}
+spam <- read_table2("spambase.tab", guess_max=2000)
+spam <- spam %>% 
+  mutate(y = factor(y, levels=c(0,1), labels=c("good","spam"))) %>% 
+  mutate_at(.vars=vars(-y), .funs=scale)
+```
+```{r echo=FALSE, results='hide',message=FALSE}
+calc_error_rate <- function(predicted.value, true.value){
+return(mean(true.value!=predicted.value))
+}
+```
+```{r echo=FALSE, results='hide',message=FALSE}
+records = matrix(NA, nrow=3, ncol=2)
+colnames(records) <- c("train.error","test.error")
+rownames(records) <- c("knn","tree","logistic")
+```
+```{r echo=FALSE, results='hide',message=FALSE}
+set.seed(2)
+test.indices = sample(1:nrow(spam), 1000)
+spam.train=spam[-test.indices,]
+spam.test=spam[test.indices,]
+```
+```{r echo=FALSE, results='hide',message=FALSE}
+nfold = 9
+set.seed(2)
+folds = seq.int(nrow(spam.train)) %>% ## sequential obs ids
+cut(breaks = nfold, labels=FALSE) %>% ## sequential fold ids
+sample ## random fold ids
+```
+
+1.Determining best value of k.
+```{r echo=FALSE, results='hide',message=FALSE}
+do.chunk <- function(chunkid, folddef, Xdat, Ydat, k){
+train = (folddef!=chunkid)
+Xtr = Xdat[train,]
+Ytr = Ydat[train]
+Xvl = Xdat[!train,]
+Yvl = Ydat[!train]
+## get classifications for current training chunks
+predYtr = knn(train = Xtr, test = Xtr, cl = Ytr, k = k)
+## get classifications for current test chunk
+predYvl = knn(train = Xtr, test = Xvl, cl = Ytr, k = k)
+data.frame(train.error = calc_error_rate(predYtr, Ytr),
+val.error = calc_error_rate(predYvl, Yvl))
+}
+```
+```{r}
+kvec = c(1, seq(10, 50, length.out=9))
+error.mat=matrix(c(rep(0,20)),nrow=10,ncol=2)
+colnames(error.mat)=c("Training Error","Test Error")
+rownames(error.mat)=kvec
+for(j in 1:10){
+  error=ldply(1:9,do.chunk,folds,select(spam.train,-y),spam.train$y,k=kvec[j])
+  #mean of the 9 training errors at the value of k 
+  error.mat[j,1]=mean(error$train.error) 
+  #mean of the 9 test error at the value of k
+  error.mat[j,2]=mean(error$val.error) 
+}
+```
+```{r}
+#Matrix of mean training and test errors at each value of k
+error.mat
+```
+```{r}
+#Test errors of each level of k
+error.mat[,2] 
+#Min test error observed
+min(error.mat[,2]) 
+#k value that gives minimum test error
+best.kfold=kvec[match(min(error.mat[,2]),error.mat[,2])]
+best.kfold 
+```
+
+2.Computing training and test error of the knn method
+```{r}
+knn.train.train=knn(train = spam.train%>%select(-y),
+                   test = spam.train%>%select(-y),
+                   cl = spam.train$y,
+                   k=best.kfold)
+knn.train.test=knn(train = spam.train%>%select(-y),
+                   test = spam.test%>%select(-y),
+                   cl = spam.train$y,
+                   k=best.kfold)
+```
+```{r}
+records[1,1]=calc_error_rate(knn.train.train,spam.train$y)
+records[1,2]=calc_error_rate(knn.train.test,spam.test$y)
+```
+
+3.Analysis of initial decision tree.
+```{r}
+tcont=tree.control(nobs=3601,minsize = 6,mindev = 1e-6)
+spamtree=tree(y~.,data=spam.train,control = tcont)
+summary(spamtree)
+```
+There are 172 leaf nodes and 67 missclassified results.
+
+4.Plotting 10 terminal node decision tree.
+```{r}
+draw.tree(prune.tree(spamtree,best=10),cex=.6,nodeinfo = T)
+```
+
+5.Determining optimal tree size and plotting result.
+```{r}
+cv.spamtree=cv.tree(spamtree,FUN = prune.misclass,rand=folds,K=9)
+plot(cv.spamtree)
+best.size.cv=min(cv.spamtree$size[which(cv.spamtree$dev==min(cv.spamtree$dev))])
+best.size.cv
+abline(v=best.size.cv,col="blue")
+text(24,800,"Best Size of Tree = 21",srt=90)
+```
+6.Calculating error rates for the decision tree method.
+```{r}
+spamtree.pruned=prune.tree(spamtree,best=best.size.cv)
+```
+```{r}
+tree.train=predict(spamtree.pruned,spam.train,type="class")
+tree.test=predict(spamtree.pruned,spam.test,type="class")
+```
+```{r}
+records[2,1]=calc_error_rate(tree.train,spam.train$y)
+records[2,2]=calc_error_rate(tree.test,spam.test$y)
+```
+
+7.
+If g(y) is an inverse function of f(x), then f(g(y))=y
+
+z(p)=$\ln(\frac{p}{1-p})$
+
+p(z(p))=$\frac{e^(ln(\frac{p}{1-p}))}{1+e^(ln(\frac{p}{1-p})}$
+
+=$\frac{\frac{p}{1-p}}{1+\frac{p}{1-p}}$
+
+=$\frac{p}{1-p}*\frac{1-p}{1-p+p}$
+
+=$\frac{\frac{p(1-p)}{1-p}}{1-p+p}$
+
+=$\frac{p}{1}$
+
+=p
+
+Thus, z(p) is the inverse function of p(z).
+
+8.
+```{r}
+spam.glm=glm(y~.,data=spam.train,family = quasibinomial())
+spam.glm.train=round(predict(spam.glm,type="response"),2)
+spam.glm.test=round(predict(spam.glm,spam.test,type="response"),2)
+spam.train.glm.pred=spam.train%>%
+  mutate(predspam=as.factor(ifelse(spam.glm.train<=.5,"good","spam")))
+spam.test.glm.pred=spam.test%>%
+  mutate(predspam=as.factor(ifelse(spam.glm.test<=.5,"good","spam")))
+```
+```{r}
+records[3,1]=calc_error_rate(spam.train.glm.pred$predspam,spam.train$y)
+records[3,2]=calc_error_rate(spam.test.glm.pred$predspam,spam.test$y)
+```
+```{r}
+records
+```
+Logistic regression had the lowest misclassification rate for test data.
+
+9.ROC curves for the Pruned Decision Tree and Logistic Regression Models.
+```{r}
+spam.tree.predprob=predict(spamtree.pruned, spam.test, type="vector")[,2]
+spam.glm.predprob=predict(spam.glm, spam.test, type="response")
+spam.tree.prediction=prediction(spam.tree.predprob,spam.test$y)
+spam.glm.prediction=prediction(spam.glm.predprob,spam.test$y)
+tree.pref=performance(spam.tree.prediction,measure="tpr",x.measure = "fpr")
+glm.pref=performance(spam.glm.prediction,measure="tpr",x.measure = "fpr")
+```
+```{r}
+plot(tree.pref,col="gold3",lwd=3,main="ROC Curve for Pruned Decision Tree")
+abline(0,1)
+plot(glm.pref,col="blue3",lwd=3,main="ROC Curve for Logistic Regression")
+abline(0,1)
+```
+
+10. 
+In this example a false positive result would mean that a non-spam email was incorrectly labeled as spam.
+
+From the ROC curve, as we improve the the true positive rate we run the risk of increasing the false positive rate. Eventually we will hit the point where, in our efforts to increase the true positive rate, we incidentally increase the false positive rate considerably for marginal increases to the true positive rate.
+
+As a designer, if I were to make a decision on how to balance the trade offs I would want to have it be so that the amount of false positive cases is minimized whilst still filtering out as much spam as possible. Reason being is that, as a user of email, I do not want any spam in my inbox and would much rather look for important emails in my spam folder than go through my inbox looking for spam.

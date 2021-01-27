@@ -1,0 +1,283 @@
+---
+title: "2016 Election Prediction"
+author: "Your Name (PSTAT 131/231)"
+date: "3/12/2018"
+output:
+  html_document: default
+  pdf_document: default
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
+
+indent1 = '    '
+indent2 = paste(rep(indent1, 2), collapse='')
+indent3 = paste(rep(indent1, 3), collapse='')
+
+doeval = FALSE
+
+library(knitr)
+library(tidyverse)
+library(ggmap)
+library(maps)
+library(Rtsne)
+library(NbClust)
+library(tree)
+library(maptree)
+library(class)
+library(reshape2)
+```
+
+Predicting voter behavior is complicated for many reasons despite the tremendous effort in collecting, analyzing, and understanding many available datasets. 
+For our final project, we will analyze the 2016 presidential election dataset, but, first, some background.
+
+# Background
+
+The presidential election in 2012 did not come as a surprise. Some correctly predicted the outcome of the election correctly including [Nate Silver](https://en.wikipedia.org/wiki/Nate_Silver), 
+and [many speculated his approach](https://www.theguardian.com/science/grrlscientist/2012/nov/08/nate-sliver-predict-us-election).
+
+Despite the success in 2012, the 2016 presidential election came as a 
+[big surprise](https://fivethirtyeight.com/features/the-polls-missed-trump-we-asked-pollsters-why/) 
+to many, and it was a clear example that even the current state-of-the-art technology can surprise us.
+
+Answer the following questions in one paragraph for each.
+
+1. What makes voter behavior prediction (and thus election forecasting) a hard problem?
+
+2. What was unique to Nate Silver's approach in 2012 that allowed him to achieve good predictions?
+
+3. What went wrong in 2016? What do you think should be done to make future predictions better?
+
+# Data
+
+```{r data}
+election.raw = read.csv("data/election/election.csv") %>% as.tbl
+census_meta = read.csv("data/census/metadata.csv", sep = ";") %>% as.tbl
+census = read.csv("data/census/census.csv") %>% as.tbl
+census$CensusTract = as.factor(census$CensusTract)
+```
+
+## Election data
+
+Following is the first few rows of the `election.raw` data:
+
+```{r, echo=FALSE}
+kable(election.raw %>% head)
+```
+
+The meaning of each column in `election.raw` is clear except `fips`. The accronym is short for [Federal Information Processing Standard](https://en.wikipedia.org/wiki/FIPS_county_code).
+
+In our dataset, `fips` values denote the area (US, state, or county) that each row of data represent: i.e., some rows in `election.raw` are summary rows. These rows have `county` value of `NA`. There are two kinds of summary rows:
+
+* Federal-level summary rows have `fips` value of `US`.
+* State-level summary rows have names of each states as `fips` value.
+
+## Census data
+
+Following is the first few rows of the `census` data:
+
+```{r, echo=FALSE}
+kable(census %>% head)
+```
+
+### Census data: column metadata
+
+Column information is given in `metadata`.
+
+```{r, dependson=data, echo=FALSE}
+kable(census_meta)
+```
+
+## Data wrangling
+4. Remove summary rows from `election.raw` data: i.e.,
+
+    * Federal-level summary into a `election_federal`.
+    
+    * State-level summary into a `election_state`.
+    
+    * Only county-level data is to be in `election`.
+
+
+5. How many named presidential candidates were there in the 2016 election? Draw a bar chart of all votes received by each candidate
+
+
+6. Create variables `county_winner` and `state_winner` by taking the candidate with the highest proportion of votes. 
+  Hint: to create `county_winner`, start with `election`, group by `fips`, compute `total` votes, and `pct = votes/total`. 
+  Then choose the highest row using `top_n` (variable `state_winner` is similar).
+  
+    
+# Visualization
+
+Visualization is crucial for gaining insight and intuition during data mining. We will map our data onto maps.
+
+The R package `ggplot2` can be used to draw maps. Consider the following code.
+
+```{r, message=FALSE}
+states = map_data("state")
+
+ggplot(data = states) + 
+  geom_polygon(aes(x = long, y = lat, fill = region, group = group), color = "white") + 
+  coord_fixed(1.3) +
+  guides(fill=FALSE)  # color legend is unnecessary and takes too long
+```
+
+The variable `states` contain information to draw white polygons, and fill-colors are determined by `region`.
+
+7. Draw county-level map by creating `counties = map_data("county")`. Color by county
+
+
+8. Now color the map by the winning candidate for each state. 
+  First, combine `states` variable and `state_winner` we created earlier using `left_join()`. 
+  Note that `left_join()` needs to match up values of states to join the tables; however, they are in different formats: e.g. `AZ` vs. `arizona`.
+  Before using `left_join()`, create a common column by creating a new column for `states` named
+  `fips = state.abb[match(some_column, some_function(state.name))]`. 
+  Replace `some_column` and `some_function` to complete creation of this new column. Then `left_join()`.
+  Your figure will look similar to state_level [New York Times map](https://www.nytimes.com/elections/results/president).
+
+
+
+9. The variable `county` does not have `fips` column. So we will create one by pooling information from `maps::county.fips`.
+  Split the `polyname` column to `region` and `subregion`. Use `left_join()` combine `county.fips` into `county`. 
+  Also, `left_join()` previously created variable `county_winner`. 
+  Your figure will look similar to county-level [New York Times map](https://www.nytimes.com/elections/results/president).
+
+  
+10. Create a visualization of your choice using `census` data. Many exit polls noted that 
+    [demographics played a big role in the election](https://fivethirtyeight.com/features/demographics-not-hacking-explain-the-election-results/).
+    Use [this Washington Post article](https://www.washingtonpost.com/graphics/politics/2016-election/exit-polls/) 
+    and [this R graph gallery](https://www.r-graph-gallery.com/) for ideas and inspiration.
+    
+11. The `census` data contains high resolution information (more fine-grained than county-level).  
+    In this problem, we aggregate the information into county-level data by 
+    computing `TotalPop`-weighted average of each attributes for each county. Create the following variables:
+    
+    * _Clean census data `census.del`_: 
+      start with `census`, filter out any rows with missing values, 
+      convert {`Men`, `Employed`, `Citizen`} attributes to a percentages (meta data seems to be inaccurate), 
+      compute `Minority` attribute by combining {Hispanic, Black, Native, Asian, Pacific}, remove {`Walk`, `PublicWork`, `Construction`}.  
+      _Many columns seem to be related, and, if a set that adds up to 100%, one column will be deleted._  
+      
+
+    * _Sub-county census data, `census.subct`_: 
+      start with `census.del` from above, `group_by()` two attributes {`State`, `County`}, 
+      use `add_tally()` to compute `CountyTotal`. Also, compute the weight by `TotalPop/CountyTotal`.
+    
+
+    * _County census data, `census.ct`_: 
+      start with `census.subct`, use `summarize_at()` to compute weighted sum
+    
+
+    * _Print few rows of `census.ct`_: 
+    
+
+# Dimensionality reduction
+
+12. Run PCA for both county & sub-county level data. Save the first two principle components PC1 and PC2 into a two-column data frame, call it `ct.pc` and `subct.pc`, respectively. What are the most prominent loadings?
+
+
+# Clustering
+
+13. With `census.ct`, perform hierarchical clustering using Euclidean distance metric 
+    complete linkage to find 10 clusters. Repeat clustering process with the first 5 principal components of `ct.pc`.
+    Compare and contrast clusters containing San Mateo County. Can you hypothesize why this would be the case?
+
+
+# Classification
+
+In order to train classification models, we need to combine `county_winner` and `census.ct` data.
+This seemingly straightforward task is harder than it sounds. 
+Following code makes necessary changes to merge them into `election.cl` for classification.
+
+```{r, eval=doeval}
+tmpwinner = county_winner %>% ungroup %>%
+  mutate(state = state.name[match(state, state.abb)]) %>%               ## state abbreviations
+  mutate_at(vars(state, county), tolower) %>%                           ## to all lowercase
+  mutate(county = gsub(" county| columbia| city| parish", "", county))  ## remove suffixes
+tmpcensus = census.ct %>% mutate_at(vars(State, County), tolower)
+
+election.cl = tmpwinner %>%
+  left_join(tmpcensus, by = c("state"="State", "county"="County")) %>% 
+  na.omit
+
+## saves meta information to attributes
+attr(election.cl, "location") = election.cl %>% select(c(county, fips, state, votes, pct))
+election.cl = election.cl %>% select(-c(county, fips, state, votes, pct))
+```
+
+Using the following code, partition data into 80% training and 20% testing:
+```{r, eval=doeval}
+set.seed(10) 
+n = nrow(election.cl)
+in.trn= sample.int(n, 0.8*n) 
+trn.cl = election.cl[ in.trn,]
+tst.cl = election.cl[-in.trn,]
+```
+
+Using the following code, define 10 cross-validation folds:
+```{r, eval=doeval}
+set.seed(20) 
+nfold = 10
+folds = sample(cut(1:nrow(trn.cl), breaks=nfold, labels=FALSE))
+```
+
+Using the following error rate function:
+```{r}
+calc_error_rate = function(predicted.value, true.value){
+  return(mean(true.value!=predicted.value))
+}
+records = matrix(NA, nrow=3, ncol=2)
+colnames(records) = c("train.error","test.error")
+rownames(records) = c("tree","knn","lda")
+```
+
+## Classification: native attributes
+
+13. Decision tree: train a decision tree by `cv.tree()`. Prune tree to minimize misclassification. Be sure to use the `folds` from above for cross-validation. Visualize the trees before and after pruning. Save training and test errors to `records` variable.  
+    
+
+    
+14. K-nearest neighbor: train a KNN model for classification. Use cross-validation to determine the best number of neighbors, and plot number of neighbors vs. resulting training and validation errors. Compute test error and save to `records`.  
+    
+
+## Classification: principal components
+
+Instead of using the native attributes, we can use principal components in order to train our classification models. After this section, a comparison will be made between classification model performance between using native attributes and principal components.  
+    
+```{r}
+pca.records = matrix(NA, nrow=3, ncol=2)
+colnames(pca.records) = c("train.error","test.error")
+rownames(pca.records) = c("tree","knn","lda")
+```
+
+15. Compute principal components from the independent variables in training data. Then, determine the number of minimum number of PCs needed to capture 90% of the variance. Plot proportion of variance explained. 
+    
+
+16. Create a new training data by taking class labels and principal components. Call this variable `tr.pca`. Create the test data based on principal component loadings: i.e., transforming independent variables in test data to principal components space. Call this variable `test.pca`.
+    
+
+17. Decision tree: repeat training of decision tree models using principal components as independent variables. Record resulting errors.
+    
+
+   
+18. K-nearest neighbor: repeat training of KNN classifier using principal components as independent variables. Record resulting errors.  
+
+
+# Interpretation & Discussion
+
+19. This is an open question. Interpret and discuss any insights gained and possible explanations. Use any tools at your disposal to make your case: visualize errors on the map, discuss what does/doesn't seems reasonable based on your understanding of these methods, propose possible directions (collecting additional data, domain knowledge, etc)
+
+# Taking it further
+
+20. Propose and tackle at least one interesting question. Be creative! Some possibilities are:
+
+    * Data preprocessing: we aggregated sub-county level data before performing classification. Would classification at the sub-county level before determining the winner perform better? What implicit assumptions are we making?
+
+    * Feature engineering: would a non-linear classification method perform better? Would you use native features or principal components?
+
+    * Additional classification methods: logistic regression, LDA, QDA, SVM, random forest, etc. (You may use methods beyond this course). How do these compare to KNN and tree method?
+
+    * Bootstrap: Perform boostrap to generate plots similar to Figure 4.10/4.11. Discuss the results. 
+    
+    

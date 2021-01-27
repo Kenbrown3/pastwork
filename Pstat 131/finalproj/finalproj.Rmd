@@ -1,0 +1,643 @@
+---
+title: "Pstat 131 Final Project"
+author: "Kendall Brown Chris Nguyen"
+date: "Winter 2018"
+output: pdf_document
+---
+
+```{r, message=FALSE, warning=FALSE, include=FALSE}
+library(tidyverse)
+library(plotly)
+library(maps)
+library(tree)
+library(maptree)
+library(plyr)
+library(randomForest)
+library(class)
+library(rpart)
+library(ROCR)
+library(dplyr)
+```
+4. Wrangling data to be used for further analysis.
+```{r}
+election.raw = read.csv("C:/Users/kebro/Desktop/Pstat 131/finalproject/final-project/data/election/election.csv") %>% as.tbl
+census_meta = read.csv2("C:/Users/kebro/Desktop/Pstat 131/finalproject/final-project/data/census/metadata.csv") %>% as.tbl
+census = read.csv("C:/Users/kebro/Desktop/Pstat 131/finalproject/final-project/data/census/census.csv") %>% as.tbl
+census$CensusTract = as.factor(census$CensusTract)
+```
+```{r}
+election_federal=filter(election.raw,state=="US",is.na(county))
+election_state=filter(election.raw,state!="US",is.na(county))
+election=filter(election.raw,is.na(county)==0)
+totalvotes  = election_federal %>%
+              select(candidate, votes) %>%
+              group_by(candidate)
+```
+5. Number of candidates running in 2016
+```{r}
+nrow(totalvotes)-1
+```
+According to this data set there were 31 different candidates running in 2016.
+
+Visualizing votes per candidate in a bar chart. 
+```{r}
+ggplot(totalvotes)+
+  geom_bar(mapping=aes(x=candidate,y=votes,fill=candidate),stat="identity")+
+  coord_flip()
+```
+6. Creating county_winner and state_winner variables by calculating vote proportion. 
+```{r, warning=FALSE}
+county_votes=election%>%
+  select(fips,county,candidate,votes,state)%>%
+  group_by(fips)
+county_votes$County_Votes=ave(county_votes$votes,county_votes$fips,FUN=sum)
+county_votes$pct=round(county_votes$votes/county_votes$County_Votes,4)
+county_votes$Win_Prediction=county_votes$pct==ave(county_votes$pct,county_votes$fips,FUN=max)
+county_winner=county_votes%>%filter(Win_Prediction==1)
+county_winner=county_winner[,c(1:5,7)]
+head(county_winner)
+```
+```{r, warning=FALSE}
+state_votes=election_state%>%
+  select(state,candidate,votes)%>%
+  group_by(state)
+state_votes$state_votes=ave(state_votes$votes,state_votes$state,FUN=sum)
+state_votes$pct=round(state_votes$votes/state_votes$state_votes,4)
+state_votes$Win_Prediction=state_votes$pct==ave(state_votes$pct,state_votes$state,FUN=max)
+state_winner=state_votes%>%filter(Win_Prediction==1)
+state_winner=state_winner[,c(1:3,5)]
+head(state_winner)
+```
+7. Drawing a county level map of the United States.
+```{r}
+counties=map_data("county")
+ggplot(data=counties)+
+  geom_polygon(aes(x = long, y = lat, fill = region, group = group), color = "white") + 
+  coord_fixed(1.3) +
+  guides(fill=FALSE)
+```
+8. Matching each county to their winning candidate.
+```{r}
+state_winner$region=tolower(state.name[match(state_winner$state,state.abb)])
+```
+```{r, message=FALSE, warning=FALSE}
+states=map_data("state")
+states.comb=left_join(state_winner,states)
+ggplot(data=states.comb)+
+  geom_polygon(aes(x = long, y = lat, fill = states.comb$candidate, group = group), color = "black") + 
+  coord_fixed(1.3) +
+  guides(fill=FALSE)
+```
+9. Adding fips column to counties data set and plotting a map according to county winner.
+```{r, message=FALSE}
+counties.fips=counties
+x=maps::county.fips
+x$region=gsub(",.*","",x$polyname)
+x$subregion=gsub(".*,","",x$polyname)
+counties.fips=left_join(counties,x)
+counties.fips$fips=as.factor(counties.fips$fips)
+head(counties.fips)
+```
+```{r, warning=FALSE}
+county.comb=left_join(counties.fips,county_winner,by="fips")
+ggplot(data=county.comb)+
+  geom_polygon(aes(x = long, y = lat, fill = county.comb$candidate, group = group), color = "black") + 
+  coord_fixed(1.3) +
+  guides(fill=FALSE)
+```
+10. Plotting a bubble graph of income per capita in each state, where bubble size is proportional to the state's minority population. 
+```{r}
+census.plus=census%>%
+  filter(complete.cases(census))
+census.plus$Men.per=(census.plus$Men/census.plus$TotalPop)
+census.plus$Women.per=(census.plus$Women/census.plus$TotalPop)
+census.plus$Employment.Popluation.ratio=census.plus$Employed/census.plus$TotalPop
+```
+```{r}
+census.plus$state.pop=(ave(census.plus$TotalPop,census.plus$State,FUN=sum))
+census.plus$hisp.per=(ave(census.plus$Hispanic,census.plus$State,FUN=mean)/100)*census.plus$state.pop
+census.plus$white.per=(ave(census.plus$White,census.plus$State,FUN=mean)/100)*census.plus$state.pop
+census.plus$black.per=(ave(census.plus$Black,census.plus$State,FUN=mean)/100)*census.plus$state.pop
+census.plus$asian.per=(ave(census.plus$Asian,census.plus$State,FUN=mean)/100)*census.plus$state.pop
+census.plus$native.per=(ave(census.plus$Native,census.plus$State,FUN=mean)/100)*census.plus$state.pop
+census.plus$pacific.per=(ave(census.plus$Pacific,census.plus$State,FUN=mean)/100)*census.plus$state.pop
+census.plus$men.per=(ave(census.plus$Men.per,census.plus$State,FUN=mean))*census.plus$state.pop
+census.plus$women.per=(ave(census.plus$Women.per,census.plus$State,FUN=mean))*census.plus$state.pop
+census.plus$StateIncomePerCap=(ave(census.plus$IncomePerCap,census.plus$State,FUN=mean))
+```
+```{r}
+census.plus.unique=data.frame(c(1:52))
+census.plus.unique=as.tibble(census.plus.unique)
+```
+```{r}
+census.plus.unique$state=unique(census.plus$State)
+census.plus.unique$pop=unique(census.plus$state.pop)
+census.plus.unique$hisp=unique(census.plus$hisp.per)
+census.plus.unique$white=unique(census.plus$white.per)
+census.plus.unique$black=unique(census.plus$black.per)
+census.plus.unique$asian=unique(census.plus$asian.per)
+census.plus.unique$native=unique(census.plus$native.per)
+census.plus.unique$pacific=unique(census.plus$pacific.per)
+census.plus.unique$men=unique(census.plus$men.per)
+census.plus.unique$women=unique(census.plus$women.per)
+census.plus.unique$minority=(census.plus.unique$hisp+census.plus.unique$black+census.plus.unique$native+
+  census.plus.unique$asian+census.plus.unique$pacific)/census.plus.unique$pop
+census.plus.unique$IncomePerCapita=unique(census.plus$StateIncomePerCap)
+```
+```{r, warning=FALSE}
+census.plus.unique$state=
+  factor(census.plus.unique$state,levels=rev(levels(census.plus.unique$state)))
+p=ggplot(mapping=aes(state,IncomePerCapita,size=minority,color=1:52),data=census.plus.unique)+
+  geom_point()+
+  coord_flip()
+ggplotly(p)
+```
+As we can see the percentage of minorities in a given state has little impact on the states income per capita. To further illustrate this point a basic linear regression model is to be drawn mapping income per cap to minority percentage.
+```{r}
+fit.income=lm(IncomePerCapita~minority,data=census.plus.unique)
+summary(fit.income)
+plot(census.plus.unique$minority,census.plus.unique$IncomePerCapita,
+     main="Linear Regression Model of Inc/cap related to minority percentage",
+     xlab="Minority Percentage",ylab="Income per Capita")
+abline(fit.income)
+```
+From the summary report and the plot, we clearly see income per capita is indipendant of a states minority percentage.
+
+11.Cleaning census data to be converted to weighted county level data.
+```{r}
+census.del=census%>%
+  filter(complete.cases(census))
+census.del$Men=(census.del$Men/census.plus$TotalPop)*100
+census.del$Women=(census.del$Women/census.plus$TotalPop)
+census.del$Employed=(census.del$Employed/census.del$TotalPop)*100
+census.del$Citizen=(census.del$Citizen/census.del$TotalPop)*100
+census.del$Minority=(census.del$Hispanic+census.del$Black+census.del$Native+
+  census.del$Asian+census.del$Pacific)
+census.del=census.del%>%select(-c(Walk,PublicWork,Construction,Hispanic,Asian,Black,Native,Pacific,Women,White))
+```
+
+Creating subcounty census data.
+```{r}
+census.subct=census.del%>%group_by(State,County)
+census.subct$CountyTotal=ave(census.subct$TotalPop,census.subct$County,census.subct$State,FUN=sum)
+CountyWeight=census.subct$TotalPop/census.subct$CountyTotal
+```
+Creating county census data and printing the first 6 rows of census.ct using the head() function.
+```{r}
+census.ct=census.subct[1:3]
+census.ct[4:29]=census.subct[4:29]*CountyWeight
+census.ct=census.ct%>%
+  summarise_at(vars(TotalPop:CountyTotal),sum)
+census.ct$TotalPop=census.ct$CountyTotal
+census.ct=census.ct%>%select(-c(CountyTotal))
+head(census.ct)
+```
+
+12. Gathering principle components of census.ct data, saved in ct.pc data set. 
+```{r, warning=FALSE}
+ct.pc.temp=census.ct[,3:27]
+row.names(ct.pc.temp)=paste(census.ct$County,census.ct$State)
+ct.pc=prcomp(ct.pc.temp,scale=T)
+subct.pc.temp=census.subct[,4:29]
+row.names(subct.pc.temp)=paste(census.subct$County,census.subct$State,census.subct$CensusTract)
+subct.pc=prcomp(subct.pc.temp,scale=T)
+```
+Comparing the loadings of the principal components.
+```{r}
+biplot(ct.pc,scale=0,col=c(0,2))
+```
+We see employment related variables to be particularly impactful, as are poverty related variables. Ethnicity and Sex appear to be less impactul than expected.
+
+13. Preforming hierarchical clustering across 10 clusters using census.ct data and its first 5 PCs. Additionally comparing the clustering of California, San Mateo County.
+```{r, warning=FALSE}
+census.ct.dist=dist(census.ct)
+cen.ct.hc=hclust(census.ct.dist,method = "complete")
+cen.ct.hc.cut=cutree(cen.ct.hc,k=10)
+cen.ct.hc.cut[2575]
+```
+We observe San Mateo County to be in cluster 1 when we cluster census.ct directly.
+```{r}
+ct.pc.5=ct.pc$x[,1:5]
+dist.ct.pc.5=dist(ct.pc.5)
+ct.hc=hclust(dist.ct.pc.5,method="complete")
+ct.hc.cut=cutree(ct.hc,k=10)
+plot(ct.pc.5,col=ct.hc.cut)
+points(ct.pc.5["San Mateo California",1:5],pch=18,cex=3,col=ct.hc.cut["San Mateo California"])
+ct.hc.cut["San Mateo California"]
+```
+We observe San Mateo county to be clustered into cluster 4. This can be explained by the fact that the first 5 PCs do not account for enough of the variance explained in the data set.
+```{r}
+summary(ct.pc)$importance[3,]
+```
+In fact they only account for <63% of all variance explained. Thus leading to quite drastic misclassification errors.
+
+
+```{r}
+tmpwinner = county_winner %>% ungroup %>%
+  mutate(state = state.name[match(state, state.abb)]) %>%               ## state abbreviations
+  mutate_at(vars(state, county), tolower) %>%                           ## to all lowercase
+  mutate(county = gsub(" county| columbia| city| parish", "", county))  ## remove suffixes
+tmpcensus = census.ct
+tmpcensus$State=tolower(tmpcensus$State)
+tmpcensus$County=tolower(tmpcensus$County)
+
+election.cl = tmpwinner %>%
+  left_join(tmpcensus, by = c("state"="State", "county"="County")) %>% 
+  na.omit
+
+## saves meta information to attributes
+attr(election.cl, "location") = election.cl %>% select(c(county, fips, state, votes, pct))
+election.cl = election.cl %>% select(-c(county, fips, state, votes, pct))
+```
+```{r}
+set.seed(10) 
+n = nrow(election.cl)
+in.trn= sample.int(n, 0.8*n) 
+trn.cl = election.cl[ in.trn,]
+tst.cl = election.cl[-in.trn,]
+```
+```{r}
+set.seed(20) 
+nfold = 10
+folds = sample(cut(1:nrow(trn.cl), breaks=nfold, labels=FALSE))
+```
+```{r}
+calc_error_rate = function(predicted.value, true.value){
+  return(mean(true.value!=predicted.value))
+}
+records = matrix(NA, nrow=5, ncol=2)
+colnames(records) = c("train.error","test.error")
+rownames(records) = c("tree","knn","lda","log","qda")
+```
+
+13v2. Creating a decision tree trained by the trn.cl. Cross-Validated across 10 folds, and pruned to minimize test error.
+```{r}
+tcont=tree.control(nobs=nrow(trn.cl))
+election.tree=tree(candidate~.,data=trn.cl,method="class",control=tcont)
+summary(election.tree)
+draw.tree(election.tree,cex=.5)
+```
+```{r}
+cv.election.tree=cv.tree(election.tree,FUN=prune.misclass,rand=folds,K=10)
+plot(cv.election.tree)
+best.size.cv=min(cv.election.tree$size[which(cv.election.tree$dev==min(cv.election.tree$dev))])
+election.tree.prune=prune.tree(election.tree,best = best.size.cv,method = "misclass")
+summary(election.tree.prune)
+draw.tree(election.tree.prune,cex=.4)
+```
+```{r}
+tree.train=predict(election.tree.prune,trn.cl,type="class")
+tree.test=predict(election.tree.prune,tst.cl,type="class")
+records[1,1]=calc_error_rate(tree.train,trn.cl$candidate)
+records[1,2]=calc_error_rate(tree.test,tst.cl$candidate)
+records
+```
+We observe a training and test error of .065 and .083 respectively when data is trained to fit a decision tree.
+
+14. Preforming a 10-fold CV for K-nearest neighbors heirarchical clustering.
+```{r echo=FALSE, results='hide',message=FALSE}
+do.chunk <- function(chunkid, folddef, Xdat, Ydat, k){
+train = (folddef!=chunkid)
+Xtr = Xdat[train,]
+Ytr = Ydat[train]
+Xvl = Xdat[!train,]
+Yvl = Ydat[!train]
+## get classifications for current training chunks
+predYtr = knn(train = Xtr, test = Xtr, cl = Ytr, k = k)
+## get classifications for current test chunk
+predYvl = knn(train = Xtr, test = Xvl, cl = Ytr, k = k)
+data.frame(train.error = calc_error_rate(predYtr, Ytr),
+           val.error = calc_error_rate(predYvl, Yvl))
+}
+```
+```{r cache=T}
+kvec = seq(1,40)
+error.mat=matrix(c(rep(0,80)),nrow=40,ncol=2)
+colnames(error.mat)=c("Training Error","Test Error")
+rownames(error.mat)=kvec
+for(j in 1:40){
+  error=ldply(1:10,do.chunk,folds,select(trn.cl,-candidate),trn.cl$candidate,k=kvec[j])
+  error.mat[j,1]=mean(error$train.error) 
+  error.mat[j,2]=mean(error$val.error) 
+}
+```
+
+Computing optimal number for k achieved via cross-validation
+```{r}
+#k value that gives minimum test error
+best.k=kvec[match(min(error.mat[,2]),error.mat[,2])]
+best.k
+plot(error.mat[,1],xlab="Number of Neighbors", ylab="Error Rate",col="blue",pch=16,main="Error Rate by Neighbor Count")
+points(error.mat[,2],col="red",pch=16)
+legend("bottomright",legend=c("Traning Error","Test Error"),pch=c(16,16),col=c("blue","red"))
+abline(v=best.k)
+```
+We choose k=15 as CV tells us that it should lead to minimum test error.
+
+```{r}
+knn.train=knn(train=trn.cl%>%select(-candidate),
+              test=trn.cl%>%select(-candidate),
+              cl=trn.cl$candidate,
+              k=best.k)
+knn.test=knn(train=trn.cl%>%select(-candidate),
+              test=tst.cl%>%select(-candidate),
+              cl=trn.cl$candidate,
+              k=best.k)
+```
+```{r}
+records[2,1]=calc_error_rate(knn.train,trn.cl$candidate)
+records[2,2]=calc_error_rate(knn.test,tst.cl$candidate)
+records
+```
+Surprisingly we have comparitively high traing and test error when we opt to train a knn-model for heirarchical clustering.
+
+
+15. Determining how many PCs are needed to account for at least 90% of observed variance.
+```{r}
+trn.cl.pca=prcomp(~.-candidate,data=trn.cl,scale=T)
+min(which(summary(trn.cl.pca)$importance[3,]>=.9))
+```
+We see that at least 14 principal components are needed to account for 90% of observed variance in the data set.
+
+16. Computing PCs of training and test data to train predictive models. saved into datasets trn.pca and tst.pca.
+```{r}
+election.pca=data.frame(candidate=election.cl$candidate, prcomp(~.-candidate,data=election.cl,scale=T)$x[,1:15])
+set.seed(10) 
+n.pca = nrow(election.pca)
+in.trn= sample.int(n.pca, 0.8*n.pca) 
+trn.pca = election.pca[ in.trn,]
+tst.pca = election.pca[-in.trn,]
+```
+```{r echo=FALSE, results="hide",message=False}
+set.seed(20) 
+nfold.pca = 10
+folds.pca = sample(cut(1:nrow(trn.pca), breaks=nfold.pca, labels=FALSE))
+```
+```{r echo=FALSE, results='hide',message=FALSE}
+do.chunk.pca <- function(chunkid, folddef, Xdat, Ydat, k){
+train = (folddef!=chunkid)
+Xtr = Xdat[train,]
+Ytr = Ydat[train]
+Xvl = Xdat[!train,]
+Yvl = Ydat[!train]
+## get classifications for current training chunks
+predYtr = knn(train = Xtr, test = Xtr, cl = Ytr, k = k)
+## get classifications for current test chunk
+predYvl = knn(train = Xtr, test = Xvl, cl = Ytr, k = k)
+data.frame(train.error = calc_error_rate(predYtr, Ytr),
+val.error = calc_error_rate(predYvl, Yvl))
+}
+```
+```{r}
+pca.records = matrix(NA, nrow=5, ncol=2)
+colnames(pca.records) = c("pca.train.error","pca.test.error")
+rownames(pca.records) = c("tree","knn","lda","log","qda")
+```
+
+17. Training, cross-validating, and plotting a decision tree using PCs of training data. 
+```{r}
+tcont.pca=tree.control(nobs=nrow(trn.pca))
+election.tree.pca=tree(candidate~.,data=trn.pca,method="class",control=tcont.pca)
+summary(election.tree.pca)
+draw.tree(election.tree.pca,cex=.5)
+```
+
+Pruning then plotting PCA trained decision tree to minimalize test error.
+```{r}
+cv.election.tree.pca=cv.tree(election.tree.pca,FUN=prune.misclass,rand=folds.pca,K=10)
+plot(cv.election.tree.pca)
+best.size.cv.pca=min(cv.election.tree.pca$size[which(cv.election.tree.pca$dev==min(cv.election.tree.pca$dev))])
+best.size.cv.pca
+election.tree.prune.pca=prune.tree(election.tree.pca,best = best.size.cv.pca,method = "misclass")
+summary(election.tree.prune.pca)
+draw.tree(election.tree.prune.pca,cex=.6)
+```
+```{r}
+tree.train.pca=predict(election.tree.prune.pca,trn.pca,type="class")
+tree.test.pca=predict(election.tree.prune.pca,tst.pca,type="class")
+pca.records[1,1]=calc_error_rate(tree.train.pca,trn.pca$candidate)
+pca.records[1,2]=calc_error_rate(tree.test.pca,tst.pca$candidate)
+pca.records
+```
+We observe a traing and test eror of 11.27% and 11.4%, respective, when training a decision tree with PCAs.
+
+18. training a knn model using priciple components.
+```{r chache=T}
+kvec.pca = seq(1,40)
+error.mat.pca=matrix(c(rep(0,80)),nrow=40,ncol=2)
+colnames(error.mat.pca)=c("Training Error","Test Error")
+rownames(error.mat.pca)=kvec.pca
+for(j in 1:40){
+  error=ldply(1:10,do.chunk.pca,folds.pca,select(trn.pca,-candidate),trn.pca$candidate,k=kvec.pca[j])
+  error.mat.pca[j,1]=mean(error$train.error) 
+  error.mat.pca[j,2]=mean(error$val.error) 
+}
+```
+
+```{r}
+#k value that gives minimum test error
+best.k.pca=kvec.pca[match(min(error.mat.pca[,2]),error.mat.pca[,2])]
+best.k.pca
+plot(error.mat.pca[,1],xlab="Number of Neighbors", ylab="Error Rate",col="blue",pch=16,main="Error Rate by Neighbor Count")
+points(error.mat.pca[,2],col="red",pch=16)
+legend("bottomright",legend=c("Traning Error","Test Error"),pch=c(16,16),col=c("blue","red"))
+abline(v=best.k.pca)
+```
+```{r}
+knn.train.pca=knn(train=trn.pca%>%select(-candidate),
+              test=trn.pca%>%select(-candidate),
+              cl=trn.pca$candidate,
+              k=best.k.pca)
+knn.test.pca=knn(train=trn.pca%>%select(-candidate),
+              test=tst.pca%>%select(-candidate),
+              cl=trn.pca$candidate,
+              k=best.k.pca)
+```
+```{r}
+pca.records[2,1]=calc_error_rate(knn.train.pca,trn.pca$candidate)
+pca.records[2,2]=calc_error_rate(knn.test.pca,tst.pca$candidate)
+pca.records
+```
+We observe a respective training and test error of 6.2% and 9.8% when we train a knn-model with PCAs.
+
+19.
+
+20. Preforming LDA, QDA, and Logistic Regression
+```{r, message=FALSE, warning=FALSE}
+library(MASS)
+```
+Setting factor levels to a binary level.
+```{r}
+trn.cl$candidate=factor(trn.cl$candidate)
+tst.cl$candidate=factor(tst.cl$candidate)
+trn.pca$candidate=factor(trn.pca$candidate)
+tst.pca$candidate=factor(tst.pca$candidate)
+```
+
+Preforming LDA with "raw" data. Calculating error rates for LDA model.
+```{r, warning=FALSE}
+lda.cl=lda(candidate~.,data=trn.cl)
+lda.cl.pred.trn=predict(lda.cl,newdata=trn.cl)
+lda.cl.pred.tst=predict(lda.cl,newdata=tst.cl)
+records[3,1]=calc_error_rate(lda.cl.pred.trn$class,trn.cl$candidate)
+records[3,2]=calc_error_rate(lda.cl.pred.tst$class,tst.cl$candidate)
+records
+```
+We observe a respective training and test error of 6.7% and 7.9% when we train a model with raw data. 
+
+Plotting ROC curve and computing AUC for LDA model.
+```{r, warning=FALSE}
+pred.cl.lda=prediction(lda.cl.pred.tst$posterior[,2],tst.cl$candidate)
+pref.cl.lda=performance(pred.cl.lda,measure = "tpr",x.measure="fpr")
+plot(pref.cl.lda,col=2,main="ROC Curve",lwd=5)
+abline(0,1)
+auc.lda.cl=performance(pred.cl.lda,measure = "auc")@y.values[[1]]
+auc.lda.cl
+```
+Ploting the ROC curve we see that the prediction model achieves an AUC score of of ~.964, making it more than satisfacotry for prediction purposes.  
+
+Training logstic model with raw data, setting classification threshold to .5. Reason being, when calculated to "optimal" value we achieved a test error of over 50%. As such we decided on the binary decision boundry for our classifications.
+```{r, warning=FALSE}
+election.glm=glm(candidate~.,data=trn.cl,family = binomial())
+summary(election.glm)
+election.glm.train=(predict(election.glm,trn.cl,type="response"))
+election.glm.test=(predict(election.glm,tst.cl,type="response"))
+elec.glm.train.pred=trn.cl%>%
+  mutate(predcand=(ifelse(election.glm.train<=.5,"Donald Trump","Hillary Clinton")))
+elec.glm.test.pred=tst.cl%>%
+  mutate(predcand=(ifelse(election.glm.test<=.5,"Donald Trump","Hillary Clinton")))
+```
+
+Calculating error rates for logistic model.
+```{r}
+records[4,1]=calc_error_rate(elec.glm.train.pred$predcand,trn.cl$candidate)
+records[4,2]=calc_error_rate(elec.glm.test.pred$predcand,tst.cl$candidate)
+records
+```
+The logistic model has a respective training and test error of 6.59% and 7.81%.
+
+Plotting and evaluating ROC curve for logistic model.
+```{r}
+pred.cl.glm=prediction(election.glm.test,tst.cl$candidate)
+pref.cl.glm=performance(pred.cl.glm,measure = "tpr",x.measure="fpr")
+plot(pref.cl.glm,col=2,main="ROC Curve",lwd=5)
+abline(0,1)
+auc.glm.cl=performance(pred.cl.glm,measure = "auc")@y.values[[1]]
+auc.glm.cl
+```
+Ploting the ROC curve we see that the prediction model achieves an AUC score of of ~.964, putting it slightly better with the LDA model for prediction purposes.  
+
+Training QDA prediction model with raw data, and computing error rates.
+```{r, message=TRUE, warning=FALSE}
+qda.cl=qda(candidate~.,data=trn.cl)
+qda.cl.pred.trn=predict(qda.cl,newdata=trn.cl)
+qda.cl.pred.tst=predict(qda.cl,newdata=tst.cl)
+records[5,1]=calc_error_rate(qda.cl.pred.trn$class,trn.pca$candidate)
+records[5,2]=calc_error_rate(qda.cl.pred.tst$class,tst.pca$candidate)
+records
+```
+The QDA model achieves a respective training and test error of 7.41% and 8.96%.
+
+Plotting ROC curve and calculating AUC
+```{r}
+pred.cl.qda=prediction(qda.cl.pred.tst$posterior[,2],tst.pca$candidate)
+pref.cl.qda=performance(pred.cl.qda,measure = "tpr",x.measure="fpr")
+plot(pref.cl.qda,col=2,main="ROC Curve",lwd=5)
+abline(0,1)
+auc.cl.qda=performance(pred.cl.qda,measure = "auc")@y.values[[1]]
+auc.cl.qda
+```
+From the ROC curve we see that the QDA model preforms predictions adequatley with a AUC of ~.91. However this does not match up to the logistic or LDA models.
+
+Preforming LDA with principlal components.
+```{r, message=TRUE, warning=FALSE}
+lda.pca=lda(candidate~.,data=trn.pca)
+lda.pca.pred.trn=predict(lda.pca,newdata=trn.pca)
+lda.pca.pred.tst=predict(lda.pca,newdata=tst.pca)
+pca.records[3,1]=calc_error_rate(lda.pca.pred.trn$class,trn.pca$candidate)
+pca.records[3,2]=calc_error_rate(lda.pca.pred.tst$class,tst.pca$candidate)
+pca.records
+```
+
+```{r}
+pred.pca.lda=prediction(lda.pca.pred.tst$posterior[,2],tst.pca$candidate)
+pref.pca.lda=performance(pred.pca.lda,measure = "tpr",x.measure="fpr")
+plot(pref.pca.lda,col=2,main="ROC Curve",lwd=5)
+abline(0,1)
+auc.lda.pca=performance(pred.pca.lda,measure = "auc")@y.values
+auc.lda.pca
+```
+```{r}
+election.glm.pca=glm(candidate~.,data=trn.pca,family = binomial)
+summary(election.glm.pca)
+election.glm.train.pca=(predict(election.glm.pca,trn.pca,type="response"))
+election.glm.test.pca=(predict(election.glm.pca,tst.pca,type="response"))
+elec.glm.train.pred.pca=trn.pca%>%
+  mutate(predcand=(ifelse(election.glm.train.pca<=.5,"Donald Trump","Hillary Clinton")))
+elec.glm.test.pred.pca=tst.pca%>%
+  mutate(predcand=(ifelse(election.glm.test.pca<=.5,"Donald Trump","Hillary Clinton")))
+```
+```{r}
+pred.pca.glm=prediction(election.glm.test.pca,tst.cl$candidate)
+pref.pca.glm=performance(pred.pca.glm,measure = "tpr",x.measure="fpr")
+plot(pref.pca.glm,col=2,main="ROC Curve",lwd=5)
+abline(0,1)
+auc.glm.pca=performance(pred.pca.glm,measure = "auc")@y.values
+auc.glm.pca
+```
+
+Calculating error rate for pca trained logistic model
+```{r}
+pca.records[4,1]=calc_error_rate(elec.glm.train.pred.pca$predcand,trn.pca$candidate)
+pca.records[4,2]=calc_error_rate(elec.glm.test.pred.pca$predcand,tst.pca$candidate)
+pca.records
+```
+When trained with PCAs the respective training and test error of the logistic model were 8.22% and 9.77%.
+
+Training QDA model with PCAs and computing training/test errors.
+```{r, message=TRUE, warning=FALSE}
+qda.pca=qda(candidate~.,data=trn.pca)
+qda.pca.pred.trn=predict(qda.pca,newdata=trn.pca)
+qda.pca.pred.tst=predict(qda.pca,newdata=tst.pca)
+pca.records[5,1]=calc_error_rate(qda.pca.pred.trn$class,trn.pca$candidate)
+pca.records[5,2]=calc_error_rate(qda.pca.pred.tst$class,tst.pca$candidate)
+pca.records
+```
+When trained with PCAs the QDA model has respective training and test error of the logistic model were 9.48% and 10.9%.
+
+Plotting ROC curve for PCA trained QDA model.
+```{r}
+pred.pca.qda=prediction(qda.pca.pred.tst$posterior[,2],tst.pca$candidate)
+pref.pca.qda=performance(pred.pca.qda,measure = "tpr",x.measure="fpr")
+plot(pref.pca.qda,col=2,main="ROC Curve",lwd=5)
+abline(0,1)
+auc.pca.qda=performance(pred.pca.qda,measure = "auc")@y.values[[1]]
+auc.pca.qda
+```
+From the ROC curve and AUC score of ~.91 we can say that the model is capable of making sound predictions but it is not the best one we've computed.
+
+From the above models error rates shown below
+```{r}
+#Clustered Raw Data trained model error rates
+records
+#PCA Data trained model error rates
+pca.records
+```
+We can see that the model that gave the lowest test error was the logistic model trained under the raw, clustered data. 
+```{r, message=FALSE, warning=FALSE}
+detach("package:MASS", unload=TRUE)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+

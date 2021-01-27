@@ -1,0 +1,29 @@
+---
+title: "Untitled"
+author: "Kendall Brown"
+date: "February 18, 2018"
+output: pdf_document
+---
+
+```{r}
+ocean.land=read.csv("C:/Users/kebro/Desktop/Pstat 174/1880-2017.csv",header=T,skip=4)
+ocean.land.ts=ts(ocean.land[,2],start=c(1880,1),frequency = 1)
+```
+```{r}
+plot.ts(ocean.land.ts,ylab="Temperature Change in Celcius",type="l")
+abline(h=0)
+plot.ts(abs(ocean.land.ts),ylab="Temperature Change in Celcius",type="l")
+```
+```{r}
+min(ocean.land.ts)
+plot.ts(log(ocean.land.ts+1),
+        ylab="ln of Absolute Value of Temperature Change in Celcius",type="l")
+```
+```{r}
+library(MASS)
+```
+```{r}
+t=1:length(ocean.land.ts)
+fit=lm(ocean.land.ts~t)
+bcTrans=boxcox(ocean.land.ts+1~t,plotit=T)
+```
