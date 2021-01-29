@@ -1,0 +1,109 @@
+---
+title: "Untitled"
+author: "Kendall Brown"
+date: "December 3, 2019"
+output: html_document
+---
+
+```{r, eval=FALSE, include=FALSE}
+rm(list=ls())
+library(dplyr)
+library(MASS)
+library(tidyverse)
+library(ggplot2)
+library(multcomp)
+library(car)
+library(HH)
+library(gplots)
+library(plyr)
+SA=read.csv(choose.files(),header = T)
+#elimanating the #58 observation with missing gender value
+SA<- SA [-58, ]
+
+```
+```{r}
+attach(SA)
+#rename the level for simpler denotion
+levels(group)
+levels(group) <- c("Depressed", "Healthy", "SAwithD","SAw/oD")
+levels(sex) <- c("M", "F")
+sex<- factor(sex)
+```
+```{r}
+#shows the number of observations in each cell
+table(group,sex)
+#showing an unbalanced study
+
+#overall view(mean and standard deviation for each cell)
+aggregate(socialanxiety,by = list( group,sex),FUN=mean)
+aggregate(socialanxiety,by = list( sex,group),FUN=mean)
+aggregate(socialanxiety,by = list( group,sex),FUN=sd)
+aggregate(socialanxiety,by = list( sex,group),FUN=sd)
+```
+
+```{r}
+#type I aov:variable in different orders just for comparison with type III below
+fit.aov1 <- aov(socialanxiety~group*sex)
+summary(fit.aov1)
+
+fit.aov2 <- aov(socialanxiety~sex*group)
+summary(fit.aov2)
+
+#type III
+fit.type3<-aov(socialanxiety~group*sex,data = SA,
+                 contrasts=list(sex="contr.sum", group="contr.sum"))
+fit.type3
+summary(fit.type3)
+#only GROUP is Significant
+
+#another method to get type III result in R
+fit.type3.2<-Anova(lm(socialanxiety~group*sex,
+                    contrasts=list(sex="contr.sum", group="contr.sum"),data = SA),type="III")
+fit.type3.2
+summary(fit.type3.2)
+```
+
+```{r}
+#outlier test 
+outlierTest(fit.type3)
+outlierTest(lm(socialanxiety~sex))
+outlierTest(lm(socialanxiety~group))
+#no outlier(though boxplot shows outlier,but the test says no) 
+```
+
+```{r}
+#interaction plot
+list(fit.type3)
+par(mfrow = c(1,1))
+plotmeans(socialanxiety~interaction(sex,group, sep=" "),connect= list(c(1,3,5,7),c(2,4,6,8)), col=c( "red", "dark green"), main="Interacion Plot with 95% CIs",xlab = "Group and Gerder Conbination")
+#paralleled lines, indicating no interaction
+
+#boxplots and interaction plot
+#showing the variability of social anxiety across different groups
+#showing the variability of social anxiety across different genders
+interaction2wt(socialanxiety~group*sex)
+```
+
+```{r}
+#Tuckey test(pairwise cell mean comparison with controlled type I error)
+TukeyHSD(fit.type3)
+par(mar=c(2,12,4,6))
+plot(TukeyHSD(fit.type3))
+
+
+
+
+#test normality 
+qqPlot(lm(socialanxiety~group*sex),data= SA)
+#outlier: 68 112
+
+par(mar=c(2,4,2,4))
+#Two ways to check homogeneity of variance:bartlett & levene
+#homogeneity of variance by group > ***did not pass
+bartlett.test(socialanxiety~group,data= SA)
+leveneTest(socialanxiety,group)
+#homogeneity of variance by sex  > okay
+bartlett.test(socialanxiety~sex,data= SA)
+leveneTest(socialanxiety,sex)
+
+```

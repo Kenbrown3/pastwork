@@ -1,0 +1,224 @@
+---
+title: "Anova Seminar 2"
+author: "Kendall Brown"
+date: "November 29, 2019"
+output: pdf_document
+---
+
+```{r}
+rm(list=ls())
+library(tidyverse)
+library(MASS)
+library(multcomp)
+library(car)
+```
+```{r}
+SA=read.csv("C:/Users/kebro/OneDrive/KU_Leuven/Anova/SocialAnxiety.csv",header = T)
+#remove single unidentified sex observation.
+SA_binary=SA[(SA$sex=="male") | (SA$sex=="female"),]
+#remove outlier
+SA_binary=SA_binary[SA_binary$socialanxiety!=160,]
+SA_binary$sex=as.factor(SA_binary$sex)
+SA_binary$group=as.factor(SA_binary$group)
+#SA_binary=SA_binary[!(SA_binary$group=="social anxiety without depression"&SA_binary$socialanxiety>140),]
+SA_male=SA_binary[SA_binary$sex=="male",]
+SA_female=SA_binary[SA_binary$sex=="female",]
+
+summary(SA_binary)
+
+#Boxplot of SA vs Group
+ggplot(data=SA_binary)+
+  geom_boxplot(mapping=aes(x=group,y=socialanxiety))+
+  scale_x_discrete(labels = c("Depressed","Healthy","SA+D","SA-D"))
+#Boxplot of SA vs Sex
+ggplot(data=SA_binary)+
+  geom_boxplot(mapping=aes(x=sex,y=socialanxiety))
+
+#Boxplot of SA vs Group:Sex
+ggplot(data=SA_binary)+
+  geom_boxplot(mapping=aes(x=group,y=socialanxiety,color=sex))+
+  scale_x_discrete(labels = c("Depressed","Healthy","SA+D","SA-D"))
+```
+
+No Immediately obvious relation between sex and social anxiety or between sex and group.
+
+Social anxiety vs grouping
+```{r}
+print("Healthy Group")
+print(c("Mean",mean(SA_binary[SA_binary$group=='healthy controls',]$socialanxiety)))
+print(c("Standarad Deviaiton",sd(SA_binary[SA_binary$group=='healthy controls',]$socialanxiety)))
+cat("\n")
+
+print("Depressed Group")
+print(c('Mean',mean(SA_binary[SA_binary$group=='depressed',]$socialanxiety)))
+print(c('Standarad Deviation',sd(SA_binary[SA_binary$group=='depressed',]$socialanxiety)))
+cat("\n")
+
+print("Socially Anxious and not Depressed Group")
+print(c("Mean",mean(SA_binary[SA_binary$group=="social anxiety without depression",]$socialanxiety)))
+print(c('Standard Deviation',sd(SA_binary[SA_binary$group=="social anxiety without depression",]$socialanxiety)))
+cat("\n")
+
+print("Socially Anxious and Depressed Group")
+print(c("Mean",mean(SA_binary[SA_binary$group=="social anxiety with depression",]$socialanxiety)))
+print(c("Standard Deviation",sd(SA_binary[SA_binary$group=="social anxiety with depression",]$socialanxiety)))
+```
+
+Social anxiety vs sex
+```{r}
+print("Male")
+print(c("Mean",mean(SA_binary[SA_binary$sex=='male',]$socialanxiety)))
+print(c("Standarad Deviaiton",sd(SA_binary[SA_binary$sex=='male',]$socialanxiety)))
+cat("\n")
+
+print("Female")
+print(c('Mean',mean(SA_binary[SA_binary$sex=='female',]$socialanxiety)))
+print(c('Standarad Deviation',sd(SA_binary[SA_binary$sex=='female',]$socialanxiety)))
+cat("\n")
+```
+```{r}
+print("Healthy Group")
+print(c("Male Mean",mean(SA_male[SA_male$group=='healthy controls',]$socialanxiety)))
+print(c("Male Standarad Deviaiton",sd(SA_male[SA_male$group=='healthy controls',]$socialanxiety)))
+print(c("Female Mean",mean(SA_female[SA_female$group=='healthy controls',]$socialanxiety)))
+print(c("Female Standarad Deviaiton",sd(SA_female[SA_female$group=='healthy controls',]$socialanxiety)))
+cat("\n")
+
+print("Depressed Group")
+print(c("Male Mean",mean(SA_male[SA_male$group=='depressed',]$socialanxiety)))
+print(c("Male Standarad Deviaiton",sd(SA_male[SA_male$group=='depressed',]$socialanxiety)))
+print(c("Female Mean",mean(SA_female[SA_female$group=='depressed',]$socialanxiety)))
+print(c("Female Standarad Deviaiton",sd(SA_female[SA_female$group=='depressed',]$socialanxiety)))
+cat("\n")
+
+print("Socially Anxious and not Depressed Group")
+print(c("Male Mean",mean(SA_male[SA_male$group=='social anxiety without depression',]$socialanxiety)))
+print(c("Male Standarad Deviaiton",sd(SA_male[SA_male$group=='social anxiety without depression',]$socialanxiety)))
+print(c("Female Mean",mean(SA_female[SA_female$group=='social anxiety without depression',]$socialanxiety)))
+print(c("Female Standarad Deviaiton",sd(SA_female[SA_female$group=='social anxiety without depression',]$socialanxiety)))
+cat("\n")
+
+print("Socially Anxious and Depressed Group")
+print(c("Male Mean",mean(SA_male[SA_male$group=='social anxiety with depression',]$socialanxiety)))
+print(c("Male Standarad Deviaiton",sd(SA_male[SA_male$group=='social anxiety with depression',]$socialanxiety)))
+print(c("Female Mean",mean(SA_female[SA_female$group=='social anxiety with depression',]$socialanxiety)))
+print(c("Female Standarad Deviaiton",sd(SA_female[SA_female$group=='social anxiety with depression',]$socialanxiety)))
+```
+One Way anovas
+SA vs group
+```{r}
+SA_aov=aov(socialanxiety~group,data=SA_binary)
+summary(SA_aov)
+model.tables(SA_aov,"means")
+TukeyHSD(SA_aov)
+```
+SA vs sex
+```{r}
+SA_aov=aov(socialanxiety~sex,data=SA_binary)
+summary(SA_aov)
+model.tables(SA_aov,"means")
+TukeyHSD(SA_aov)
+```
+SA vs Sex nd Group
+```{r}
+SA_aov=aov(socialanxiety~sex*group,data=SA_binary)
+summary.aov(SA_aov)
+model.tables(SA_aov,"means")
+TukeyHSD(SA_aov)
+```
+2-way anova
+```{r}
+SA_aov_mvf=aov(socialanxiety~group*sex,data=SA_binary)
+summary(SA_aov_mvf)
+model.tables(SA_aov_mvf,"means")
+```
+Tukey
+```{r}
+TukeyHSD(SA_aov_mvf)
+```
+
+```{r}
+fit_SA_t2=Anova(
+  lm(socialanxiety~group*sex,
+     contrasts = list(sex="contr.sum",group="contr.sum"),
+     data=SA_binary),type = "II")
+fit_SA_t2
+```
+```{r}
+fit_SA_t3=Anova(
+  lm(socialanxiety~group*sex,
+     contrasts = list(sex="contr.sum",group="contr.sum"),
+     data=SA_binary),type = "III")
+fit_SA_t3
+```
+```{r}
+leveneTest(socialanxiety~group*sex,data=SA_binary)
+#reject the null, reject homoscedasicity
+shapiro.test(residuals(SA_aov_mvf))
+#fail to reject null, fail to reject non-normality
+durbinWatsonTest(SA_aov_mvf, alternative="two.sided", data=SA_binary)
+#fail to reject null, fail to reject independence
+```
+```{r}
+SA_binary$sex=relevel(SA_binary$sex,ref="female")
+SA_binary$group=relevel(SA_binary$group,ref="healthy controls")
+contrasts(SA_binary$sex)=contr.treatment
+contrasts(SA_binary$group)=contr.treatment
+head(model.matrix(~group*sex,SA_binary))
+```
+
+```{r}
+fit_unb_3=aov(socialanxiety~group*sex,data=SA_binary)
+drop1(fit_unb_3,~.,test="F")
+```
+
+```{r}
+SA_aov=aov(socialanxiety~sex,data=SA_binary[SA_binary$group=="healthy controls",])
+summary(SA_aov)
+model.tables(SA_aov,"means")
+TukeyHSD(SA_aov)
+```
+
+```{r}
+SA_aov=aov(socialanxiety~sex,data=SA_binary[SA_binary$group=="social anxiety without depression",])
+summary(SA_aov)
+model.tables(SA_aov,"means")
+TukeyHSD(SA_aov)
+```
+
+```{r}
+SA_aov=aov(socialanxiety~sex,data=SA_binary[SA_binary$group=="depressed",])
+summary(SA_aov)
+model.tables(SA_aov,"means")
+TukeyHSD(SA_aov)
+```
+
+```{r}
+SA_aov=aov(socialanxiety~sex,data=SA_binary[SA_binary$group=="social anxiety with depression",])
+summary(SA_aov)
+model.tables(SA_aov,"means")
+TukeyHSD(SA_aov)
+```
+
+
+
+```{r}
+SA_aov=aov(socialanxiety~sex,data=SA_binary[SA_binary$group=="social anxiety without depression",])
+summary(SA_aov)
+model.tables(SA_aov,"means")
+TukeyHSD(SA_aov)
+```
+```{r}
+fit_SA_t3=Anova(
+  lm(socialanxiety~sex,
+     contrasts = list(sex="contr.sum"),
+     data=SA_binary[SA_binary$group=="social anxiety without depression",])
+  ,type = "III")
+fit_SA_t3
+```
+```{r}
+SA_aov=aov(socialanxiety~sex*group,data=SA_binary)
+summary.aov(SA_aov)
+#model.tables(SA_aov,"means")
+#TukeyHSD(SA_aov)
+```

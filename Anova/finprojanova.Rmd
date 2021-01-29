@@ -1,0 +1,176 @@
+---
+title: "anovaproj"
+author: "Kendall Brown"
+date: "December 7, 2019"
+output: html_document
+---
+
+```{r, eval=FALSE, include=FALSE}
+#rm(list=ls())
+library(dplyr)
+library(MASS)
+library(tidyverse)
+library(ggplot2)
+library(multcomp)
+library(car)
+library(HH)
+library(gplots)
+library(plyr)
+library(plotrix)
+#adjprof=read.table(choose.files())
+```
+```{r}
+ggplot(data=AdjunctProf)+
+  geom_boxplot(mapping=aes(x=subject,y=payment))
+ggplot(data=AdjunctProf)+
+  geom_boxplot(mapping=aes(x=degree,y=payment))
+ggplot(data=AdjunctProf)+
+  geom_boxplot(mapping=aes(x=subject,y=payment,color=degree))
+
+```
+```{r}
+tapply(payment,subject,mean)
+tapply(payment,degree,mean)
+
+AdjunctProf$subject <- factor(subject)
+AdjunctProf$degree <- factor(degree)
+
+
+#Interaction plot
+interaction.plot(subject, degree, payment, main = "Interaction plot", cex=0.8)
+```
+```{r}
+####Cell mean model
+lm.AP <- lm(payment~-1+subject:degree,data=AdjunctProf)
+summary(lm.AP)
+
+
+##Test main effect of the subject
+subject.unbalanced <- matrix(c(1,-1,0,0,1,-1,0,0,1,-1,0,0,0,1,-1,0,0,1,-1,0,0,1,-1,0,0,0,1,-1,0,0,1,-1,0,0,1,-1),nrow=3)
+main.group <- glht(lm.AP, linfct = subject.unbalanced)
+summary(main.group,test =Ftest())
+
+degree.unbalanced <- matrix(c(1,1,1,1,-1,-1,-1,-1,0,0,0,0,0,0,0,0,1,1,1,1,-1,-1,-1,-1),nrow=2)
+main.sex <- glht(lm.AP, linfct = degree.unbalanced)
+summary(main.sex,test =Ftest())
+```
+```{r}
+AdjunctProf$degree = relevel(AdjunctProf$degree, ref = 'bachelor') 
+AdjunctProf$subject = relevel(AdjunctProf$subject, ref = 'social science') 
+contrasts(AdjunctProf$subject)=contr.treatment
+contrasts(AdjunctProf$degree)=contr.treatment
+```
+```{r}
+#Test based on the factor effect model
+#contrasts(AdjunctProf$subject)=contr.sum
+#contrasts(AdjunctProf$degree)=contr.sum
+regre.data.unbalanced=as.data.frame(model.matrix(~ subject*degree, AdjunctProf,contrasts = list(subject="contr.treatment",degree="contr.treatment"))[,2:12])
+regre.data.unbalanced$payment=AdjunctProf$payment
+regre.data.unbalanced
+
+full.unbalanced=lm(payment~.,data = regre.data.unbalanced)
+summary(full.unbalanced)
+#anova(full.unbalanced)
+
+NoInt.unbalanced=lm(payment~subjectengineering+subjecthumanities+subjectmanagement+degreedoctor+degreemaster,
+                    data = regre.data.unbalanced)
+summary(NoInt.unbalanced)
+anova(NoInt.unbalanced,full.unbalanced)
+
+NoA.unbalanced=lm(payment~.-subjectengineering-subjecthumanities-subjectmanagement,data = regre.data.unbalanced)
+anova(NoA.unbalanced,full.unbalanced)
+
+NoB.unbalanced=lm(payment~.-degreedoctor-degreemaster,data = regre.data.unbalanced)
+anova(NoB.unbalanced,full.unbalanced)
+```
+
+```{r}
+#type I aov:variable in different orders just for comparison with type III below
+fit.aov1 <- aov(payment~subject*degree)
+summary(fit.aov1)
+
+fit.aov2 <- aov(payment~degree*subject)
+summary(fit.aov2)
+
+#type III
+fit.type3<-aov(payment~degree*subject,data = AdjunctProf,
+               contrasts=list(subject="contr.sum", degree="contr.sum"))
+fit.type3
+summary(fit.type3)
+#only GROUP is Significant
+```
+```{r}
+plot(fitted.values(fit.aov1),residuals(fit.aov1))
+```
+```{r}
+tukeyprof=TukeyHSD(fit.type3)
+tukeyprof
+```
+```{r}
+newtuk=data.frame(tukeyprof$`degree:subject`)
+newtuk$rownames=rownames(newtuk)
+for (i in 1:66){
+  newtuk$field1[i]=strsplit(strsplit(newtuk$rownames[i],"-",fixed=T)[[1]],":",fixed=T)[[1]][2]
+  newtuk$field2[i]=strsplit(strsplit(newtuk$rownames[i],"-",fixed=T)[[1]],":",fixed=T)[[2]][2]
+  newtuk$degree1[i]=strsplit(strsplit(newtuk$rownames[i],"-",fixed=T)[[1]],":",fixed=T)[[1]][1]
+  newtuk$degree2[i]=strsplit(strsplit(newtuk$rownames[i],"-",fixed=T)[[1]],":",fixed=T)[[2]][1]
+}
+tukfilter_field=newtuk[newtuk$field1==newtuk$field2,]
+tukfilter_degree=newtuk[newtuk$degree1==newtuk$degree2,]
+tukfilter_degree=newtuk[newtuk$degree1==newtuk$degree2,]
+```
+```{r}
+for(i in 1:12){
+  if((tukfilter_field$degree1[i]=="doctor")&(tukfilter_field$degree2[i]=="bachelor")){
+    tukfilter_field$comp[i]="doctor:bachelor"
+    }
+  if((tukfilter_field$degree1[i]=="master")&(tukfilter_field$degree2[i]=="bachelor")){
+    tukfilter_field$comp[i]="master:bachelor"
+    }
+  if((tukfilter_field$degree1[i]=="master")&(tukfilter_field$degree2[i]=="doctor")){
+    tukfilter_field$comp[i]="master:doctor"
+    }
+}
+tukfilter_field$comp=factor(rep(c(3,4,5),4),labels=c("doctor:bachelor","master:bachelor","master:doctor"))
+for(i in 1:12){
+  if(tukfilter_field$comp[i]=="doctor:bachelor"){
+    tukfilter_field$colormap[i]=1
+  }
+  if(tukfilter_field$comp[i]=="master:bachelor"){
+    tukfilter_field$colormap[i]=2
+  }
+   if(tukfilter_field$comp[i]=="master:doctor"){
+    tukfilter_field$colormap[i]=3  
+  }
+}
+```
+
+```{r}
+ggplot(tukfilter_field,aes(x=field1,y=diff))+
+  geom_point(size=4,color=tukfilter_field$colormap)+
+  geom_errorbar(aes(ymax=upr,ymin=lwr),color=tukfilter_field$colormap)+
+  xlab("Field")+
+  ylab("Degree Comparrison")+
+   ggtitle("Two-Way Comparison")
+```
+```{r}
+newtukdeg=data.frame(tukeyprof$degree)
+newtukdeg$rownames=rownames(newtukdeg)
+ggplot(newtukdeg,aes(x=rownames,y=diff))+
+  geom_point(size=4)+
+  geom_errorbar(aes(ymax=upr,ymin=lwr))+
+  ggtitle("Degree Comparison")
+```
+
+```{r}
+newtukfield=data.frame(tukeyprof$subject)
+newtukfield$rownames=rownames(newtukfield)
+ggplot(newtukfield,aes(x=rownames,y=diff))+
+  geom_point(size=4)+
+  geom_errorbar(aes(ymax=upr,ymin=lwr))+
+  scale_x_discrete(labels = c("Eng-SS","Hum-Eng","Hum-SS","MGMT-Eng","MGMT-Hum","MGMT-SS"))+
+   ggtitle("Field Comparison")
+```
+```{r}
+newtukfield
+```

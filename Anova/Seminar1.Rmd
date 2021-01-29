@@ -1,0 +1,84 @@
+---
+title: "Anova Seminar 1"
+author: "Kendall Brown"
+date: "Fall 2019"
+output: pdf_document
+---
+```{r, eval=FALSE, include=FALSE}
+rm(list=ls())
+library(dplyr)
+library(MASS)
+library(tidyverse)
+library(ggplot2)
+library(multcomp)
+library(car)
+```
+```{r}
+SA=read.csv("C:/Users/kebro/OneDrive/KU_Leuven/Anova/SocialAnxiety.csv",header = T)
+summary(SA)
+SA_binary=SA[(SA$sex=="male") | (SA$sex=="female"),]
+#single unidentified sex observation removed.
+summary(SA_binary)
+ggplot(data=SA_binary)+
+  geom_point(mapping=aes(x=group,y=socialanxiety))
+ggplot(data=SA_binary)+
+  geom_boxplot(mapping=aes(x=sex,y=socialanxiety,color=group))
+
+ggplot(data=SA_binary)+
+  geom_boxplot(mapping=aes(x=group,y=socialanxiety))+
+  scale_x_discrete(labels = c("Depressed","Healthy","SA+D","SA-D"))
+#plot(SA_binary$socialanxiety[SA_binary$group=="social anxiety without depression"])
+```
+
+```{r}
+print("Healthy Group")
+print(c("Mean",mean(SA_binary[SA_binary$group=='healthy controls',]$socialanxiety)))
+print(c("Standarad Deviaiton",sd(SA_binary[SA_binary$group=='healthy controls',]$socialanxiety)))
+cat("\n")
+
+print("Depressed Group")
+print(c('Mean',mean(SA_binary[SA_binary$group=='depressed',]$socialanxiety)))
+print(c('Standarad Deviation',sd(SA_binary[SA_binary$group=='depressed',]$socialanxiety)))
+cat("\n")
+
+print("Socially Anxious and not Depressed Group")
+print(c("Mean",mean(SA_binary[SA_binary$group=="social anxiety without depression",]$socialanxiety)))
+print(c('Standard Deviation',sd(SA_binary[SA_binary$group=="social anxiety without depression",]$socialanxiety)))
+cat("\n")
+
+print("Socially Anxious and Depressed Group")
+print(c("Mean",mean(SA_binary[SA_binary$group=="social anxiety with depression",]$socialanxiety)))
+print(c("Standard Deviation",sd(SA_binary[SA_binary$group=="social anxiety with depression",]$socialanxiety)))
+```
+
+```{r}
+SA_aov=aov(socialanxiety~group,data=SA_binary)
+summary(SA_aov)
+model.tables(SA_aov,"means")
+TukeyHSD(SA_aov)
+```
+
+```{r}
+plot(fitted.values(SA_aov),rstandard(SA_aov),
+xlab="Fitted values",
+ylab="Studentized residuals",
+main="Residuals vs fitted values plot")
+abline(h=0,lty="dashed")
+qqnorm(residuals(SA_aov))
+qqline(residuals(SA_aov))
+```
+
+Testing Assumptions
+```{r}
+leveneTest(socialanxiety~group,data=SA_binary)
+#reject the null, reject homoscedasicity
+shapiro.test(residuals(SA_aov))
+#fail to reject null, fail to reject non-normality
+durbinWatsonTest(SA_aov, alternative="two.sided", data=SA_binary)
+#fail to reject null, fail to reject independence
+```
+```{r}
+plot(((SA_binary$socialanxiety[SA_binary$group=="social anxiety without depression"])-mean(SA_binary$socialanxiety[SA_binary$group=="social anxiety without depression"]))/sd(SA_binary$socialanxiety[SA_binary$group=="social anxiety without depression"]),ylab="Standardized Scatter")
+abline(h=1.96)
+abline(h=-1.96)
+```
