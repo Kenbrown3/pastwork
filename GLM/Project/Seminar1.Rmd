@@ -1,0 +1,210 @@
+---
+title: "Seminar 1 - GLM"
+author: "Group #01"
+date: "03/17/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+A data frame with 75 observations on the following 4 variables:
+
+group: A factor with 2 levels CTRL and TREAT, indicating the treatment.
+n: A numeric vector indicating the number of animals exposed to mortality.
+trisk: A numeric vector indicating the exposition time to mortality (in year). This variable should not be used in the analysis.
+y: A numeric vector indicating the number of deaths.
+Scientific question: Does treatment (group) have an effect on mortality?
+
+1.Fit a logistic regression model.
+2.Calculate the odds ratios and corresponding confidence intervals.
+3.Assess the GOF of the model (Pearson and Deviance test).
+4.Predicted probability of death for each treatment.
+5.Fit a quasilikelihood model. Comment.
+6.Fit a beta binomial model. Comment.
+```{r}
+rm(list=ls())
+library(dplyr)
+```
+
+```{r}
+djasem <- read.table("C:/Users/kebro/OneDrive/KU_Leuven/GLM/djaSem.txt", header = T)
+attach(djasem)
+data<-na.omit(subset(djasem,select=c("group","n", "y")))
+data$group1<-as.numeric(as.factor(djasem$group))-1
+sum(data$group1)
+as.factor(data$group1)
+data$prop<-y/n
+detach(djasem)
+attach(data)
+```
+descriptive statistics
+```{r exploration, echo=FALSE}
+cor(data[ ,-1])
+summary(data)
+```
+Logistics model
+```{r logistics model,echo=FALSE}
+treat.logit.1<-glm(cbind(y, n-y)~group1, family=binomial(link="logit"),data=data)
+summary(treat.logit.1)
+```
+Grapical display
+```{r logistic curve,echo=FALSE,warning=FALSE}
+plot(group1,prop,ylim=c(0,1.05),type="n",
+cex=1., xlab="group",ylab="Proportion of Death")
+points(group1,prop,pch=19,col="red")
+## Plotting the logistic curve
+curve(predict(treat.logit.1,data.frame(group1=x),type="resp"),
+add=TRUE,col="steelblue",lwd=3)
+```
+odds ratio and interval
+```{r odds ratio, echo=FALSE,warning=FALSE}
+oddsratio<-exp(treat.logit.1$coefficients)
+limit<-exp(confint(treat.logit.1))
+interval<-exp(cbind(OR=treat.logit.1$coefficients, confint(treat.logit.1)))
+interval
+```
+Pearon and Deviance test
+```{r pearson test,echo=FALSE,warning=FALSE}
+X2=sum(residuals(treat.logit.1, type = "pearson")^2)
+data.frame(X2s=X2,pvalue=(1-pchisq(X2,73)))
+
+attributes(summary(treat.logit.1))
+Dev.an=summary(treat.logit.1)$deviance
+df.an=summary(treat.logit.1)$df.residual
+data.frame(Dev=Dev.an, df=df.an, pvalue=(1-pchisq(Dev.an,df.an)))
+```
+Both pearson Chi-square test and Deviance test reject the model.
+We will check the residual plot.
+Residual analysis
+```{r residual plot,echo=FALSE,warning=FALSE}
+treat.rdev<-residuals(treat.logit.1,type="deviance")
+ plot(predict(treat.logit.1),treat.rdev,xlab="Linear predictor", ylab="Devianceresiduals")
+abline(h=0,lty=2,col="grey")
+loess.treat.logit.1.rdev<-loess(treat.rdev~predict(treat.logit.1))
+treat.logit.1.lo.pred.dev <- predict(loess.treat.logit.1.rdev, se=T)
+j.treat<- order(predict(treat.logit.1))
+lines(predict(treat.logit.1)[j.treat],treat.logit.1.lo.pred.dev$fit[j.treat],col="blue",lwd=3)
+lines(predict(treat.logit.1)[j.treat],treat.logit.1.lo.pred.dev$fit[j.treat]+2*treat.logit.1.lo.pred.dev$s[j.treat], lty=2,col="red")
+lines(predict(treat.logit.1)[j.treat],treat.logit.1.lo.pred.dev$fit[j.treat]-2*treat.logit.1.lo.pred.dev$s[j.treat], lty=2,col="red")
+```
+residual plot :group1
+```{r group1, echo=FALSE,warning=FALSE}
+
+treat.logit.1rdev<-residuals(treat.logit.1,type="deviance")
+plot(data$group1,treat.logit.1rdev,xlab="Group1", ylab="Deviance residuals")
+abline(h=0,lty=2,col="grey")
+loess.treat.logit.1rdev.group1 <- loess(treat.logit.1rdev~data$group1)
+treat.logit.1lo.pred.dev.group1 <- predict(loess.treat.logit.1rdev.group1, se=T)
+ j.treat.group1<- order(data$group1)
+ lines(data$group1[j.treat.group1],treat.logit.1lo.pred.dev.group1$fit[j.treat.group1],
+col="blue",lwd=3)
+ lines(data$group1[j.treat.group1],treat.logit.1lo.pred.dev.group1$fit[j.treat.group1]
++2*treat.logit.1lo.pred.dev.group1$s[j.treat.group1], lty=2,col="red")
+ lines(data$group1[j.treat.group1],treat.logit.1lo.pred.dev.group1$fit[j.treat.group1]
+ -2*treat.logit.1lo.pred.dev.group1$s[j.treat.group1], lty=2,col="red")
+```
+influential points 
+```{r outliers, echo=FALSE}
+treat.logit.1.hat<-hatvalues(treat.logit.1)
+treat.logit.1.rs <- rstudent(treat.logit.1)
+treat.logit.1.st <- residuals(treat.logit.1, type="pearson")/sqrt(1 - treat.logit.1.hat)
+deltaX2 <- treat.logit.1.st^2
+deltaD <- treat.logit.1.hat*treat.logit.1.st^2+residuals(treat.logit.1, type="deviance")^2
+plot(deltaX2,xlab="Case number",ylab="Delta Chi-Square", col='red',pch=20)
+lines(deltaX2)
+identify(deltaX2)
+plot(deltaD,xlab="Case number",ylab="Delta Deviance", col='red',pch=20)
+lines(deltaD)
+identify(deltaD)
+
+```
+prediction based on Logistics regression
+```{r prediction, echo=FALSE}
+new<-data.frame(group1=c(0,1))
+predict(treat.logit.1,newdata = new,type = 'response')
+```
+Biased reduction LR - Quasi-likelihood model
+```{r quasi,echo=FALSE}
+library(brglm)
+treat.logit.2<-brglm(cbind(y, n-y)~group1, family=binomial(link="logit"),data=data)
+summary(treat.logit.2)
+```
+Test for BRLR
+```{r test2,echo=FALSE}
+X2=sum(residuals(treat.logit.2, type = "pearson")^2)
+data.frame(X2s=X2,pvalue=(1-pchisq(X2,73)))
+attributes(summary(treat.logit.2))
+Dev.an=summary(treat.logit.2)$deviance
+df.an=summary(treat.logit.2)$df.residual
+data.frame(Dev=Dev.an, df=df.an, pvalue=(1-pchisq(Dev.an,df.an)))
+```
+Quality of Prediction 
+```{r r^2,echo=FALSE}
+library(DescTools)
+require(BaylorEdPsych)
+PseudoR2(treat.logit.1)
+cbind(LR=PseudoR2(treat.logit.1)[4],BRLR=PseudoR2(treat.logit.2)[4])
+cbind(LR=PseudoR2(treat.logit.1)[3],BRLR=PseudoR2(treat.logit.2)[3])
+```
+Test for overdispersion
+```{r overdispersion}
+library(DHARMa)
+sim.model.ab<- simulateResiduals(treat.logit.1, refit=T)
+testDispersion(sim.model.ab)
+```
+beta binomial 
+```{r beta, echo=FALSE}
+library(aod)# aod betabin
+library(car)
+treat.beta.1<-betabin(cbind(y, n-y)~group1,~1,link = "logit",data=data )
+
+View(data)
+str(data)
+summary(treat.beta.1)
+vcov(treat.beta.1)
+logLik(treat.beta.1)
+AIC(treat.beta.1)
+coef(treat.beta.1)
+```
+test for beta binomial
+lower.trail = F gives the same result.
+```{r GOF test,echo=FALSE}
+X2.ab.nb=sum(residuals(treat.beta.1, type = "pearson")^2)
+n.ab.nb=dim(data)[1]
+p.ab.nb=length(coef(treat.beta.1))
+data.frame(X2s=X2.ab.nb,pvalue=1-pchisq(X2.ab.nb,n.ab.nb-p.ab.nb))
+```
+beta-binomial prediction
+```{r prediction, echo=FALSE}
+new<-data.frame(group1=c(0,1))
+predict(treat.beta.1,newdata = new,type = 'response')
+```
+
+Average Mortality rate from dataset 
+```{r Mortality Rate, echo=FALSE}
+
+#Population Weighted Mortality rate
+library(dplyr)
+
+Only.Treat<-filter(data,group1==1)
+nrow(Only.Treat)
+Treat.rate<-sum(Only.Treat$y)/sum(Only.Treat$n)
+
+Only.Ctrl<-filter(dataset,group1==0)
+nrow(Only.Ctrl)
+Ctrl.rate<-sum(Only.Ctrl$y)/sum(Only.Ctrl$n)
+
+data.frame(Ctrl.rate,Treat.rate)
+
+####################################
+
+# Unweighted Mortality rate
+
+data2=dataset%>%mutate(prop=y/n)
+mean(data2$prop[group=="TREAT"])
+mean(data2$prop[group=="CTRL"])
+```

@@ -1,0 +1,290 @@
+---
+title: "GLM Final Project"
+author: "Group # 01"
+date: "March 15, 2020"
+output: pdf_document
+---
+
+```{r}
+rm(list=ls())
+library(dplyr)
+library(ggplot2)
+library(car)
+```
+
+Loading and Wrangling Data
+```{r}
+datamain= read.delim("C:/material/Courses/stage 2/GLM/income.txt")
+datamain$income1 =ifelse(datamain$income=="<=50K",0,1)
+datamain=datamain%>%
+  mutate(agest=scale(age))%>%
+  mutate(hourst=scale(hours))%>%
+  select(-hours,-age)
+```
+#############################
+1. Data Visualization
+#############################
+```{r}
+
+  p = ggplot(data = datamain) +
+  geom_bar(aes(x = factor(race), fill = factor(income)), position = "fill")+
+  ggtitle("Income vs Race") +  
+  scale_x_discrete(name="Race")+ scale_fill_grey(start=0.8, end=0.2) + theme_classic()
+p+theme(axis.text.x = element_text(angle = -20))
+
+  ggplot(data = datamain) +
+  geom_bar(aes(x = factor(gender), fill = factor(income)), position = "fill")+
+  ggtitle("Income vs Gender") +  
+  scale_x_discrete(name="Race")+ scale_fill_grey(start=0.8, end=0.2) + theme_classic()
+  
+  ggplot(datamain,aes(gender,hourst))+
+  geom_boxplot()+
+  scale_x_discrete(name="Gender")+
+  scale_y_continuous(name="Hours Worked")
+  
+  ggplot(datamain, aes(x=hourst))+
+  geom_density()+facet_grid( . ~ edu )
+
+```
+
+```{r}
+datamain%>%
+  count(edu)
+```
+
+Anova model using type III SS
+```{r}
+options(contrasts = c("contr.sum", "contr.sum"))
+model=lm(hourst~edu,data=datamain)
+Anova(model,type="III")
+```
+```{r}
+options(contrasts = c("contr.sum", "contr.sum"))
+model=lm(hourst~agest,data=datamain)
+Anova(model,type="III")
+```
+
+##########################################
+2.CONSTRUCT A LOGISTIC REGRESSION MODEL
+##########################################
+Making Training and test data
+```{r}
+set.seed(123)
+datamain = datamain %>% 
+  mutate(id = row_number())
+#Creating Training Data
+train = datamain %>% 
+  sample_frac(.80)
+#Creating Test Data
+test = anti_join(datamain, train, by = 'id')
+```
+
+2.1 logistic model 1 (train data)
+```{r}
+income.logit.1=glm(income~race+mari.sta+workclass+agest+gender+hourst*edu, family=binomial(link="logit"),data=train)
+summary(income.logit.1)
+```
+
+2.2 Goodness of fit tests of the logistic model
+2.2.1 Hosmer-Lemeshow Test
+```{r}
+library(ResourceSelection)
+hoslem.test(train$income1, fitted(income.logit.1), g=10)
+```
+2.2.2 Residual Analysis
+(pearson and deviance residual plot run very slow,you may not want to try it)
+```{r}
+library(car)
+par(mfrow=c(2,2))
+#residualPlots(income.logit.1)  # pearson residual plots
+#residualPlots(income.logit.1,type="deviance") 
+```
+2.2.3 Dispersion Test(it seems to have an underdispersion problem, but no need to worry about it too much)
+```{r}
+library(DHARMa)
+fit1.model =  simulateResiduals(income.logit.1, refit=T)
+testDispersion(fit1.model)
+```
+2.2.4 Complete Separation Test
+```{r}
+library(brglm) 
+separation.detection(income.logit.1, nsteps = 15)
+```
+#######################################
+3. MODEL IMPROVEMENT
+#######################################
+3.1 reconstructure workclass variable (classified from 7 levels to 4 levels by meaning)
+```{r}
+table(datamain$workclass)
+datamain$wc=datamain$workclass
+levels(datamain$wc) = c("gov", "gov", "nopay","private","selfemp","selfemp","gov","nopay")
+table(datamain$wc)
+View(datamain)
+```
+
+Making Training and test data again
+```{r}
+set.seed(123)
+datamain = datamain %>% 
+  mutate(id = row_number())
+#Creating Training Data
+train = datamain %>% 
+  sample_frac(.80)
+#Creating Test Data
+test = anti_join(datamain, train, by = 'id')
+```
+
+3.2 refit a logistic model (train data)
+```{r}
+income.logit=glm(income~race+mari.sta+wc+agest+gender+hourst*edu, family=binomial(link="logit"),data=train)
+summary(income.logit)
+income.logit.re=glm(income~mari.sta+wc+agest+gender+hourst*edu, family=binomial(link="logit"),data=train)
+anova(income.logit,income.logit.re,test="LRT")
+# odds ratio
+beta<-coef(income.logit)
+exp(beta)
+```
+
+3.3 Goodness of fit tests of the logistic model
+Hosmer-Lemeshow Test
+```{r}
+library(ResourceSelection)
+hoslem.test(train$income1, fitted(income.logit), g=10)
+```
+
+Residual Analysis
+(pearson and deviance residual plot run very slow,you may not want to try it)
+```{r}
+library(car)
+par(mfrow=c(2,2))
+#residualPlots(income.logit)  # pearson residual plots
+#residualPlots(income.logit,type="deviance") 
+```
+
+Dispersion Test(it seems to have an underdispersion problem, but no need to worry about it too much)
+```{r}
+library(DHARMa)
+fit1.model =  simulateResiduals(income.logit, refit=T)
+testDispersion(fit1.model)
+```
+
+Complete Separation Test
+```{r}
+library(brglm) 
+separation.detection(income.logit, nsteps = 15)
+```
+#################################################
+4. ASSESS THE PERFORMANCE OF THE LOGISTIC MODEL
+#################################################
+4.1 Model assessment of the logistic model with train data
+4.1.1 bulid a classifier in training data and ROC
+```{r}
+train$prob.1=predict(income.logit,newdata=train,
+                     type="response")#fitted value
+library(pROC)
+roc.train.1 = roc(train$income,train$prob.1)
+plot(roc.train.1)
+plot(smooth(roc.train.1), add=TRUE, col="blue")
+legend("bottomright", legend=c("Empirical", "Smoothed"),
+       col=c(par("fg"), "blue"), lwd=2)
+plot(roc.train.1, print.auc=TRUE, auc.polygon=TRUE, 
+     grid=c(0.1, 0.2),
+     grid.col=c("green", "red"), max.auc.polygon=TRUE,
+     auc.polygon.col="lightblue", print.thres=TRUE)
+```
+
+4.1.2 Choose a cut-off value and confusion matrix
+```{r}
+train$prob.1=predict(income.logit,newdata=train,
+                     type="response")#fitted value
+predicted_values=ifelse(train$prob.1<0.2,0,1)
+actual_values = train$income1
+confusion.train.1=table(predicted_values,actual_values)
+confusion.train.1
+```
+
+4.1.3 # accuracy,sensativity and specificity
+```{r}
+library(caret)
+confusionMatrix(confusion.train.1,positive = "1")
+```
+
+4.2 Model assessment of the logistic model with test data
+build a classifier in test data
+```{r}
+test$prob.1=predict(income.logit,newdata=test,type="response")
+test$pre.1=ifelse(test$prob.1<0.2,0,1)
+```
+
+4.2.1 ROC in test data logit
+```{r}
+library(pROC)
+roc.1 = roc(test$income,test$prob.1)
+plot(roc.1)
+plot(smooth(roc.1), add=TRUE, col="blue")
+legend("bottomright", legend=c("Empirical", "Smoothed"),
+       col=c(par("fg"), "blue"), lwd=2)
+plot(roc.1, print.auc=TRUE, auc.polygon=TRUE, grid=c(0.1, 0.2),
+     grid.col=c("green", "red"), max.auc.polygon=TRUE,
+     auc.polygon.col="lightblue", print.thres=TRUE)
+```
+
+4.2.2 confusion matrix
+```{r}
+confusion.test=table(test$pre.1,test$income1)
+confusion.test
+```
+
+4.2.3 Accuracy, Sensitivity, and Specificity
+```{r}
+library(caret)
+confusionMatrix(confusion.test,positive = "1")
+```
+
+
+#######################################
+5. conclusion
+#######################################
+improvement
+SVM
+downsampling (maybe smote is better here)
+```{r}
+library(caret)
+set.seed(100)
+down_train <- downSample(x = train[, - ncol(train)], y = train$income)
+table(down_train$income)
+```
+svm(polynomial kernel(kernel = polynomial) similar)
+```{r}
+library(e1071)
+income.svm.1=svm(income~race+mari.sta+workclass+agest+gender+hourst+edu,data=down_train,kernel="radial",cost=10,scale =FALSE)
+print(income.svm.1)
+summary(income.svm.1)
+pre.train <- fitted(income.svm.1)
+```
+
+```{r Alternative Solution}
+income.svm.1=svm(income~race+mari.sta+workclass+agest+gender+hourst+edu,data=down_train,
+                 kernel="linear",probability=F,cost=10,scale =FALSE)
+print(income.svm.1)
+summary(income.svm.1)
+pre.train <- fitted(income.svm.1)
+
+svm.pred=predict(income.svm.1,newdata=train,type="response")#fitted value
+confusionMatrix(svm.pred,train$income, positive = ">50K")
+
+svm.pred=predict(income.svm.1,newdata=test,type="response")#fitted value
+confusionMatrix(svm.pred,test$income, positive = ">50K")
+
+income.svm.2=svm(income~race+mari.sta+workclass+agest+gender+hourst+edu,data=down_train,kernel="radial",cost=10,scale =FALSE)
+print(income.svm.2)
+summary(income.svm.2)
+pre.train2 <- fitted(income.svm.2)
+
+svm.pred=predict(income.svm.2,newdata=train,type="response")#fitted value
+confusionMatrix(svm.pred,train$income, positive = ">50K")
+
+svm.pred=predict(income.svm.2,newdata=test,type="response")#fitted value
+confusionMatrix(svm.pred,test$income, positive = ">50K")
+```
+

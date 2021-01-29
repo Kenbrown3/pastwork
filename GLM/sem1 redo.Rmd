@@ -1,0 +1,45 @@
+---
+title: "Untitled"
+author: "Kendall Brown r0773111"
+date: "8/29/2020"
+output: pdf_document
+---
+
+```{r}
+rm(list=ls())
+library(dplyr)
+library(aod)
+djasem <- read.table("C:/Users/kebro/OneDrive/KU_Leuven/GLM/djaSem.txt", header = T)
+data<-na.omit(subset(djasem,select=c("group","n", "y")))
+data$group1<-as.numeric(as.factor(djasem$group))-1
+sum(data$group1)
+as.factor(data$group1)
+data$prop<-data$y/data$n
+```
+```{r}
+treat.logit.1<-glm(cbind(y, n-y)~group1, family=binomial(link="logit"),data=data)
+summary(treat.logit.1)
+```
+```{r}
+confint(treat.logit.1)
+wald.test(b = coef(treat.logit.1), Sigma = vcov(treat.logit.1),Terms=2)
+```
+
+
+
+```{r}
+exp(cbind(OR = coef(treat.logit.1), confint(treat.logit.1)))/(1+exp(cbind(OR = coef(treat.logit.1), confint(treat.logit.1))))
+```
+
+```{r}
+mean(rep(data[data$group1==1,]$prop,data[data$group1==1,]$n))
+mean(rep(data[data$group1==0,]$prop,data[data$group1==0,]$n))
+```
+```{r}
+exp(-0.5217)/(1+exp(-0.5217))
+exp(-0.5217-0.9289)/(1+exp(-0.5217-0.9289))
+(exp(-0.5217-0.9289)/(1+exp(-0.5217-0.9289)))/(exp(-0.5217)/(1+exp(-0.5217)))
+```
+```{r}
+exp(coef(treat.logit.1))/(1+exp(coef(treat.logit.1)))
+```

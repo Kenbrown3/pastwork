@@ -1,0 +1,138 @@
+---
+title: "GLM Final Project"
+author: "Kendall Brown"
+date: "March 10, 2020"
+output: pdf_document
+---
+
+```{r}
+rm(list=ls())
+library(dplyr)
+library(ggplot2)
+library(car)
+library(stats)
+library(ResourceSelection)
+```
+
+Loading and Wrangling Data
+```{r}
+datamain=read.table("C:/Users/kebro/OneDrive/KU Leuven/GLM/income.txt",header=T)
+datamain=datamain%>%
+  mutate(agest=scale(age))%>%
+  mutate(hourst=scale(hours))%>%
+  select(-hours,-age)
+summary(datamain)
+```
+
+Data Visualizations
+```{r}
+ggplot(datamain,aes(gender,income))+
+  geom_count(aes(size = ..prop..,group=gender,color=..prop..))+
+  scale_size_area()+
+  ggtitle("Income vs Gender")+
+  scale_y_discrete(name="Income")+
+  scale_x_discrete(name="Gender")+
+  guides(color = 'legend')
+
+ggplot(datamain,aes(race,income))+
+  geom_count(aes(size = ..prop..,group=race,color=..prop..))+
+  scale_size_area()+
+  theme(axis.text.x = element_text(angle = -15))+
+  ggtitle("Income vs Race")+
+  scale_x_discrete(name="Race")+
+  scale_y_discrete(name="Income")+
+  guides(color = 'legend')
+
+ggplot(datamain,aes(gender,hourst))+
+  geom_boxplot()+
+  scale_x_discrete(name="Gender")+
+  scale_y_continuous(name="Hours Worked")
+
+ggplot(datamain,aes(hourst))+
+  geom_density(aes(group=edu,fill=edu))+
+  facet_grid(~edu)+
+  scale_x_discrete(name="Hours Worked")+
+  scale_y_continuous(name="Density")
+```
+
+
+
+```{r}
+datamain%>%
+  count(edu)
+```
+
+
+Anova model using type III SS
+```{r}
+modelhouredu=aov(hourst~edu,data=datamain)
+summary(modelhouredu)
+```
+
+
+
+```{r}
+## Multiple comparisons procedures(all pairs are different)
+
+tukey.t = TukeyHSD(modelhouredu)
+tukey.t
+plot(tukey.t)
+```
+ It appears that hours worked and education level are highly corelated it does not make sense to scale hours without considering this fact. A new dataset is made where hours are scaled by group
+ 
+```{r}
+datamain2=read.table("C:/Users/kebro/OneDrive/KU Leuven/GLM/income.txt",header=T)
+datamain2=datamain2%>%
+  group_by(edu)%>%
+  mutate(agest=scale(age))%>%
+  mutate(hourst=scale(hours))%>%
+  select(-hours,-age)
+summary(datamain2)
+```
+```{r}
+ggplot(datamain2,aes(hourst))+
+  geom_density(aes(group=edu,fill=edu))+
+  facet_grid(~edu)+
+  scale_x_discrete(name="Hours Worked")+
+  scale_y_continuous(name="Density")
+```
+
+
+Making Training and test data
+```{r}
+set.seed(123)
+datamain2 = datamain2 %>% 
+  mutate(id = row_number())
+#Creating Training Data
+train = datamain2 %>% 
+  sample_frac(.80)
+#Creating Test Data
+test = anti_join(datamain2, train, by = 'id')
+```
+
+```{r}
+logmodel=glm(income~.+hourst:edu+gender:edu,family = binomial(link='logit'),data=train)
+summary(logmodel)
+```
+
+```{r}
+OR=exp(cbind(OR=logmodel$coefficients, confint(logmodel)))
+OR
+```
+
+should take probit link function as outcome is binary
+```{r}
+logmodelprob=glm(income~.+hourst:edu+gender:edu,family = binomial(link='probit'),data=train) 
+logmodelprob
+```
+
+```{r}
+logmodelprob=glm(income~.+hourst:edu+gender:edu,family = binomial(link='probit'),data=train) 
+logmodelprob
+results=1*(logmodelprob$fitted.values<.25)
+binary=(train$income=='>50K')
+
+hl=hoslem.test(binary,results)
+hl
+cbind(hl$observed,hl$expected)
+```

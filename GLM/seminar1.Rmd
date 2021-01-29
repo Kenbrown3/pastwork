@@ -1,0 +1,64 @@
+---
+title: "Untitled"
+author: "Kendall Brown"
+date: "February 15, 2020"
+output: pdf_document
+---
+```{r}
+rm(list=ls())
+library(tidyverse)
+library(ResourceSelection)
+```
+
+
+
+```{r}
+data=read.table("C:/Users/kebro/OneDrive/KU Leuven/GLM/djaSem.txt",header=T)
+data$prop=data$y/data$n
+head(data)
+```
+##Descriptive Statistics
+
+
+
+```{r}
+logmodel=glm(cbind(y,n-y)~group,data=data,family = binomial(link="logit"))
+lmsum=summary(logmodel)
+lmsum
+```
+```{r}
+anova(logmodel,test="Chisq")
+anova(logmodel,test="Rao")
+```
+
+```{r}
+logmodel2=glm(prop~group,data=data,family = binomial(link="logit"))
+lmsum2=summary(logmodel2)
+lmsum2
+```
+
+```{r}
+anova(logmodel2,test="Chisq")
+anova(logmodel2,test="Rao")
+```
+
+```{r}
+exp(cbind(OR=logmodel$coefficients,confint(logmodel)))
+```
+
+
+
+```{r}
+which(resid>=1.96)
+
+library(boot)
+diags=glm.diag(logmodel)
+plot(diags$cook)
+which((((diags$cook)-mean(diags$cook))/sd(diags$cook))>=1.96)
+
+data$prop=data$y/data$n
+```
+
+```{r}
+
+```
