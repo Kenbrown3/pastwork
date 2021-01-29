@@ -1,0 +1,478 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r}
+rm(list=ls())
+library(readxl)
+library(tidyverse)
+library(hash)
+library(lubridate)
+library(caret)
+library(e1071)
+library(PRROC)
+```
+
+```{r}
+# reservations=read_xlsx("C:/Users/kebro/OneDrive/KU_Leuven/StatCons/reservations.xlsx")
+reservations=as_tibble(read.csv("C:/Users/kebro/OneDrive/KU_Leuven/StatCons/reservations.csv",header=T))
+```
+```{r}
+str(reservations)
+```
+
+clean arrival date variable
+```{r}
+datevars=reservations%>%
+  select(arrival_date_day_of_month,arrival_date_month,arrival_date_year)
+```
+
+```{r}
+monthnumber=hash()
+months=c("January","February","March","April","May","June",
+         "July","August","September","October","November","December")
+for(i in 1:12){
+  monthnumber[months[i]]=i
+}
+```
+
+```{r}
+datevars$monthnum=rep(0,length(datevars$arrival_date_month))
+for(i in 1:length(datevars$arrival_date_month)){
+  datevars$monthnum[i]=monthnumber[[as.character(datevars$arrival_date_month[i])]]
+}
+```
+
+```{r}
+arrivaldate=rep("",length(datevars$arrival_date_month))
+for(i in 1:length(arrivaldate)){
+  arrivaldate[i]=paste(datevars[i,1],datevars[i,4],datevars[i,3],sep="-")
+}
+```
+```{r}
+datevars=datevars%>%mutate(arrival=dmy(arrivaldate))
+reservations=reservations%>%mutate(arrival_date=datevars$arrival)
+```
+
+```{r}
+dates=unique(reservations$arrival_date)
+x=length(dates)
+reservations_per_day=rep(0,x)
+cancelations_per_day=rep(0,x)
+for(i in 1:x){
+  reservations_per_day[i]=length(reservations$arrival_date[reservations$arrival_date==dates[i]])
+  cancelations_per_day[i]=sum(reservations$is_canceled[reservations$arrival_date==dates[i]])
+}
+```
+
+```{r}
+per_day_statistics=tibble(
+  dates,reservations_per_day,
+  cancelations_per_day,
+  cancelations_per_day_ratio=cancelations_per_day/reservations_per_day)
+```
+
+```{r}
+per_day_statistics%>%
+  ggplot(aes(dates,cancelations_per_day_ratio))+
+  geom_point()+
+  labs(y="Percent Cancelations",x="Date",title="Global")
+```
+
+```{r}
+x="USA"
+reservations_x=reservations%>%filter(country==x)
+dates_x=unique(reservations_x$arrival_date)
+x=length(dates_x)
+reservations_per_day=rep(0,x)
+cancelations_per_day=rep(0,x)
+for(i in 1:x){
+  reservations_per_day[i]=length(reservations_x$arrival_date[reservations_x$arrival_date==dates_x[i]])
+  cancelations_per_day[i]=sum(reservations_x$is_canceled[reservations_x$arrival_date==dates_x[i]])
+}
+per_day_statistics=tibble(
+  dates_x,reservations_per_day,
+  cancelations_per_day,
+  cancelations_per_day_ratio=cancelations_per_day/reservations_per_day)
+per_day_statistics%>%
+  ggplot(aes(dates_x,cancelations_per_day_ratio))+
+  geom_point()+
+  labs(y="Percent Cancelations",x="Date",title="USA")
+```
+
+```{r}
+x="BEL"
+reservations_x=reservations%>%filter(country==x)
+dates_x=unique(reservations_x$arrival_date)
+x=length(dates_x)
+reservations_per_day=rep(0,x)
+cancelations_per_day=rep(0,x)
+for(i in 1:x){
+  reservations_per_day[i]=length(reservations_x$arrival_date[reservations_x$arrival_date==dates_x[i]])
+  cancelations_per_day[i]=sum(reservations_x$is_canceled[reservations_x$arrival_date==dates_x[i]])
+}
+per_day_statistics=tibble(
+  dates_x,reservations_per_day,
+  cancelations_per_day,
+  cancelations_per_day_ratio=cancelations_per_day/reservations_per_day)
+per_day_statistics%>%
+  ggplot(aes(dates_x,cancelations_per_day_ratio))+
+  geom_point()+
+  labs(y="Percent Cancelations",x="Date",title = "Belgium") 
+```
+```{r}
+x="CHN"
+reservations_x=reservations%>%filter(country==x)
+dates_x=unique(reservations_x$arrival_date)
+x=length(dates_x)
+reservations_per_day=rep(0,x)
+cancelations_per_day=rep(0,x)
+for(i in 1:x){
+  reservations_per_day[i]=length(reservations_x$arrival_date[reservations_x$arrival_date==dates_x[i]])
+  cancelations_per_day[i]=sum(reservations_x$is_canceled[reservations_x$arrival_date==dates_x[i]])
+}
+per_day_statistics=tibble(
+  dates_x,reservations_per_day,
+  cancelations_per_day,
+  cancelations_per_day_ratio=cancelations_per_day/reservations_per_day)
+per_day_statistics%>%
+  ggplot(aes(dates_x,cancelations_per_day_ratio))+
+  geom_point()+
+  labs(y="Percent Cancelations",x="Date",title="China")
+```
+```{r}
+x="PRT"
+reservations_x=reservations%>%filter(country==x)
+dates_x=unique(reservations_x$arrival_date)
+x=length(dates_x)
+reservations_per_day=rep(0,x)
+cancelations_per_day=rep(0,x)
+for(i in 1:x){
+  reservations_per_day[i]=length(reservations_x$arrival_date[reservations_x$arrival_date==dates_x[i]])
+  cancelations_per_day[i]=sum(reservations_x$is_canceled[reservations_x$arrival_date==dates_x[i]])
+}
+per_day_statistics=tibble(
+  dates_x,reservations_per_day,
+  cancelations_per_day,
+  cancelations_per_day_ratio=cancelations_per_day/reservations_per_day)
+per_day_statistics%>%
+  ggplot(aes(dates_x,cancelations_per_day_ratio))+
+  geom_point()+
+  labs(y="Percent Cancelations",x="Date",title="Portugal")
+```
+
+```{r}
+x="FRA"
+reservations_x=reservations%>%filter(country==x)
+dates_x=unique(reservations_x$arrival_date)
+x=length(dates_x)
+reservations_per_day=rep(0,x)
+cancelations_per_day=rep(0,x)
+for(i in 1:x){
+  reservations_per_day[i]=length(reservations_x$arrival_date[reservations_x$arrival_date==dates_x[i]])
+  cancelations_per_day[i]=sum(reservations_x$is_canceled[reservations_x$arrival_date==dates_x[i]])
+}
+per_day_statistics=tibble(
+  dates_x,reservations_per_day,
+  cancelations_per_day,
+  cancelations_per_day_ratio=cancelations_per_day/reservations_per_day)
+per_day_statistics%>%
+  ggplot(aes(dates_x,cancelations_per_day_ratio))+
+  geom_point()+
+  labs(y="Percent Cancelations",x="Date")
+```
+
+```{r}
+x="ITA"
+reservations_x=reservations%>%filter(country==x)
+dates_x=unique(reservations_x$arrival_date)
+x=length(dates_x)
+reservations_per_day=rep(0,x)
+cancelations_per_day=rep(0,x)
+for(i in 1:x){
+  reservations_per_day[i]=length(reservations_x$arrival_date[reservations_x$arrival_date==dates_x[i]])
+  cancelations_per_day[i]=sum(reservations_x$is_canceled[reservations_x$arrival_date==dates_x[i]])
+}
+per_day_statistics=tibble(
+  dates_x,reservations_per_day,
+  cancelations_per_day,
+  cancelations_per_day_ratio=cancelations_per_day/reservations_per_day)
+per_day_statistics%>%
+  ggplot(aes(dates_x,cancelations_per_day_ratio))+
+  geom_point()+
+  labs(y="Percent Cancelations",x="Date",title="Italy")
+```
+
+```{r}
+x="DEU"
+reservations_x=reservations%>%filter(country==x)
+dates_x=unique(reservations_x$arrival_date)
+x=length(dates_x)
+reservations_per_day=rep(0,x)
+cancelations_per_day=rep(0,x)
+for(i in 1:x){
+  reservations_per_day[i]=length(reservations_x$arrival_date[reservations_x$arrival_date==dates_x[i]])
+  cancelations_per_day[i]=sum(reservations_x$is_canceled[reservations_x$arrival_date==dates_x[i]])
+}
+per_day_statistics=tibble(
+  dates_x,reservations_per_day,
+  cancelations_per_day,
+  cancelations_per_day_ratio=cancelations_per_day/reservations_per_day)
+per_day_statistics%>%
+  ggplot(aes(dates_x,cancelations_per_day_ratio))+
+  geom_point()+
+  labs(y="Percent Cancelations",x="Date",title="Germany")
+```
+```{r}
+x="SWE"
+reservations_x=reservations%>%filter(country==x)
+dates_x=unique(reservations_x$arrival_date)
+x=length(dates_x)
+reservations_per_day=rep(0,x)
+cancelations_per_day=rep(0,x)
+for(i in 1:x){
+  reservations_per_day[i]=length(reservations_x$arrival_date[reservations_x$arrival_date==dates_x[i]])
+  cancelations_per_day[i]=sum(reservations_x$is_canceled[reservations_x$arrival_date==dates_x[i]])
+}
+per_day_statistics=tibble(
+  dates_x,reservations_per_day,
+  cancelations_per_day,
+  cancelations_per_day_ratio=cancelations_per_day/reservations_per_day)
+per_day_statistics%>%
+  ggplot(aes(dates_x,cancelations_per_day_ratio))+
+  geom_point()+
+  labs(y="Percent Cancelations",x="Date")
+```
+
+Baseline Model: this is proving to be unfruiful as even after significant backward elimination the model suffers from complete seperation and a slew of other bugs best to to move towards a forward selction method in a naive model.
+```{r}
+set.seed(123)
+reservations=reservations%>%mutate(id=row_number())
+reservationbase=reservations%>%filter(arrival_date>as.Date("2016-01-01"))
+
+reservationbase=reservationbase%>%
+  select(-reservation_status,-reservation_status_date,
+         -country,-arrival_date_year,-arrival_date_month,
+         -arrival_date_day_of_month,-agent,-company,
+         -reserved_room_type,-assigned_room_type,-arrival_date_week_number,
+         -required_car_parking_spaces,-booking_changes,
+         -market_segment,-lead_time,-previous_cancellations,-deposit_type,
+         -total_of_special_requests,-hotel,-customer_type,-arrival_date)
+
+trainbase=reservationbase%>%sample_frac(.8)
+testbase=anti_join(reservationbase,trainbase,by="id")
+trainbase=trainbase%>%select(-id)
+testbase=testbase%>%select(-id)
+```
+
+
+
+```{r}
+base_model=glm(is_canceled~.,trainbase,family = "binomial")
+summary(base_model)
+```
+
+```{r}
+test_resultsbase=predict.glm(base_model,newdata = testbase,type="response")
+class_imb=sum(as.integer(trainbase$is_canceled)-1)/length(trainbase$is_canceled)
+decision_bound=class_imb
+predicted_test_classesbase=rep(0,length(test_resultsbase))
+for(i in 1:length(predicted_test_classesbase)){
+  if(test_resultsbase[i]<=1-decision_bound){
+    predicted_test_classesbase[i]=0
+  }
+  if(test_resultsbase[i]>decision_bound){
+    predicted_test_classesbase[i]=1
+  }
+}
+predicted_test_classesbase=as_factor(predicted_test_classesbase)
+confusionMatrix(predicted_test_classesbase,as_factor(testbase$is_canceled))
+```
+
+Making a naive model based off of forward selection in hopes of avoiding complete seperation.
+```{r}
+set.seed(123)
+updated_reservations=tibble(.rows = nrow(reservations))
+updated_reservations=updated_reservations%>%
+  mutate(is_canceled=as.factor(reservations$is_canceled))%>%
+  mutate(adr=(reservations$adr-mean(reservations$adr))/sd(reservations$adr))%>%
+  mutate(lead_time=(reservations$lead_time-mean(reservations$lead_time))/sd(reservations$lead_time))%>%
+  mutate(hotel=reservations$hotel)%>%
+  mutate(id=row_number())%>%
+  mutate(arrival_date=reservations$arrival_date)%>%
+  filter(arrival_date>as.Date("2017-03-01"))
+train0=updated_reservations%>%sample_frac(.8)
+test0=anti_join(updated_reservations,train0,by="id")
+train0=train0%>%select(-id)
+test0=test0%>%select(-id)
+```
+
+```{r}
+naive_model=glm(is_canceled~.,data=train0,family = "binomial")
+summary(naive_model)
+```
+
+
+```{r}
+test_results0=predict.glm(naive_model,newdata = test0,type="response")
+```
+
+```{r}
+class_imb=sum(as.integer(train0$is_canceled)-1)/length(train0$is_canceled)
+```
+
+```{r}
+decision_bound=1-class_imb
+predicted_test_classes0=rep(0,length(test_results0))
+for(i in 1:length(predicted_test_classes0)){
+  if(test_results0[i]<=1-decision_bound){
+    predicted_test_classes0[i]=0
+  }
+  if(test_results0[i]>decision_bound){
+    predicted_test_classes0[i]=1
+  }
+}
+predicted_test_classes0=as_factor(predicted_test_classes0)
+confusionMatrix(predicted_test_classes0,test0$is_canceled)
+```
+The complete seperation problem appears to have been rectified in this naive model, however the model evaluation metrics appear to be somewhat lack luster. Prehaps a somewhat larger model will give better results whilse still avoiding complete speration.
+
+
+Making a bigger model
+```{r}
+reservations=reservations%>%
+  mutate(total_guests=adults+children+babies)%>%
+  mutate(child_check=as_factor(case_when(children>0|babies>0~1,
+                                         children==0&babies==0~0)))%>%
+  mutate(group_factor=as_factor(case_when(total_guests==0~"single",
+                                total_guests==1~"single",
+                                total_guests==2~"double",
+                                total_guests>=3&total_guests<=5~"triple+",
+                                total_guests>5~"large")))
+
+price_category=tibble(.rows = nrow(reservations))
+price_category=price_category%>%
+  mutate(adr=reservations$adr)%>%
+  mutate(category=as_factor(case_when(adr<=50~"economy",
+                                 adr>50&adr<=150~"standard",
+                                 adr>100&adr<=300~"expensive",
+                                 adr>300~"luxury")))
+
+room_diff=(as.character(reservations$assigned_room_type)==as.character(reservations$reserved_room_type))
+
+set.seed(123)
+updated_reservations=tibble(.rows = nrow(reservations))
+updated_reservations=updated_reservations%>%
+  mutate(is_canceled=as.factor(reservations$is_canceled))%>%
+  mutate(adr=reservations$adr)%>%
+  #mutate(adr=price_category$category)%>%
+  #mutate(adr=(reservations$adr-mean(reservations$adr))/sd(reservations$adr))%>%
+  mutate(lead_time=reservations$lead_time)%>%
+  mutate(hotel=reservations$hotel)%>%
+  #mutate(total_guests=reservations$total_guests)%>%
+  mutate(group_factor=reservations$group_factor)%>%
+  mutate(child_check=reservations$child_check)%>%
+  mutate(is_repeated_guest=reservations$is_repeated_guest)%>%
+  mutate(deposit_type=reservations$deposit_type)%>%
+  mutate(meal=reservations$meal)%>%
+  mutate(room_check=as_factor(room_diff))%>%
+  mutate(distribution_channel=reservations$distribution_channel)%>%
+  mutate(arrival_date_week_number=reservations$arrival_date_week_number)%>%
+  mutate(country=reservations$country)%>%
+  mutate(arrival_date=reservations$arrival_date)%>%
+  filter(arrival_date>as.Date("2017-03-01"))%>%
+  mutate(id=row_number())%>%
+  group_by(country)%>%
+  mutate(count=n())%>%
+  filter(count>20)%>%
+  select(-count)%>%
+  droplevels()
+train1=updated_reservations%>%sample_frac(.8)
+test1=anti_join(updated_reservations,train1,by="id")
+train1=train1%>%select(-id)
+test1=test1%>%select(-id)
+```
+
+```{r}
+bigger_model=glm(is_canceled~.+adr*room_check+child_check*adr+arrival_date*country,data=train1,family = "binomial")
+summary(bigger_model)
+```
+
+```{r}
+highdev=(residuals.glm(bigger_model,type="deviance")<2)&(-2<residuals.glm(bigger_model,type="deviance"))
+train_nohighdev=train1[highdev,]
+```
+
+```{r}
+bigger_model=glm(is_canceled~.+adr*room_check+child_check*adr+arrival_date*country,data=train_nohighdev,
+                 family = "binomial")
+summary(bigger_model)
+```
+
+
+
+
+```{r}
+test_results1=predict.glm(bigger_model,newdata = test1,type="response")
+plot(roc.curve(scores.class0 = 1-test_results1,weights.class0 = (as.numeric(test1$is_canceled)-2)*-1,curve=T))
+```
+
+
+```{r}
+logs=rep(0,length(seq(0,1,by=.01)))
+count=1
+for(j in seq(0,1,by=.01)){
+  decision_bound=j
+  predicted_test_classes1=rep(0,length(test_results1))
+  for(i in 1:length(predicted_test_classes1)){
+    if(test_results1[i]<=1-decision_bound){
+      predicted_test_classes0[i]=0
+    }
+    if(test_results1[i]>decision_bound){
+      predicted_test_classes1[i]=1
+    }
+  }
+  predicted_test_classes1=as_factor(predicted_test_classes1)
+  levels(predicted_test_classes1)=c(0,1)
+  x=confusionMatrix(predicted_test_classes1,test1$is_canceled)
+  logs[count]=x$byClass[length(x$byClass)][[1]]
+  count=count+1
+}
+plot(y=logs,x=seq(0,1,by=.01))
+```
+
+```{r}
+decision_bound=.33
+predicted_test_classes1=rep(0,length(test_results1))
+for(i in 1:length(predicted_test_classes1)){
+  if(test_results1[i]<=1-decision_bound){
+    predicted_test_classes0[i]=0
+  }
+  if(test_results1[i]>decision_bound){
+    predicted_test_classes1[i]=1
+  }
+}
+predicted_test_classes1=as_factor(predicted_test_classes1)
+confusionMatrix(predicted_test_classes1,test1$is_canceled)
+```
+```{r}
+exp(coef(bigger_model))
+```
+```{r}
+reservations%>%
+  ggplot(aes(x=deposit_type,fill=factor(is_canceled)))+
+  geom_bar(position="fill")+
+  labs(x="Deposit Type",y="Proportion of Reservations")+
+  scale_fill_discrete(name="Cancellation",labels=c("No","Yes"))
+```
+```{r}
+updated_reservations%>%
+  ggplot(aes(x=is_repeated_guest,fill=factor(is_canceled)))+
+  geom_bar(position="fill")+
+  labs(x="Repeated Guest",y="Proportion of Reservations")+
+  scale_fill_discrete(name="Cancellation",labels=c("No","Yes"))
+```
+```{r}
+
+```
