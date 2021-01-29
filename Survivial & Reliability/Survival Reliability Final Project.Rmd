@@ -1,0 +1,457 @@
+---
+title: "Statistical Analysis of Reliability and Survival Data Final Report"
+author: "Kendall Brown r0773111"
+date: "KU Leuven: 2019-2020"
+output: pdf_document
+---
+
+```{r}
+rm(list=ls())
+#======================
+# Loading the dataset
+#======================
+leukem<-read.table(
+  file="C:/Users/kebro/OneDrive/KU_Leuven/Survivial & Reliability/Leuk.dat",
+  na.strings=".",colClasses=c(NA,"character",
+                              NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,
+                              "character","character",NA,NA,"character",NA),
+  col.names=c("ID","DateStudy","Treat","Sex",
+              "Age","FAB","Karnof","WhiteCells","Platelets",
+              "Hemoglobin","Eval","CR","NumbCR","DateCR",
+              "DateFollow","StatusFollow","StatusBone",
+              "DateBone","Incl"))
+head(leukem)
+attach(leukem)
+
+#==================================
+# Creating time to event variables
+#==================================
+DatumStudy<-as.Date(DateStudy,"%m%d%y")
+DatumCR<-as.Date(DateCR,"%m%d%y")
+DatumFollow<-as.Date(DateFollow,"%m%d%y")
+DatumBone<-as.Date(DateBone,"%m%d%y")
+
+TimeCR<-difftime(DatumCR,DatumStudy)
+TimeSurv<-difftime(DatumFollow,DatumStudy)
+TimeBone<-difftime(DatumBone,DatumStudy)
+TimeEvent<-data.frame(DatumStudy,DatumCR,
+                      DatumFollow,DatumBone,
+                      TimeCR,TimeBone)
+head(TimeEvent)
+
+#================================================
+# Creating the observed time to event variables
+#================================================
+IndCR<-1*I(CR=="Y")
+TimetoCR<-TimeCR
+TimetoCR[IndCR==0]<-TimeSurv[IndCR==0]
+IndSurv<-1*I(StatusFollow=="D")
+IndBone<-1*I(StatusBone=="Y")
+TimetoBone<-TimeBone
+TimetoBone[IndBone==0]<-TimeSurv[IndBone==0]
+TimeObs<-data.frame(TimetoCR,IndCR,
+                    TimetoBone,IndBone,
+                    TimeSurv,IndSurv)
+head(TimeObs)
+
+Leukefinal<-data.frame(leukem,TimeEvent,TimeObs)
+head(Leukefinal)
+```
+```{r include=FALSE}
+library(ggplot2)
+library(survival)
+library(survminer)
+library(ggfortify)
+library(dplyr)
+library(ciTools)
+library(ldatools)
+```
+
+# Question 1.1
+
+Shown here is a plot of the survival function of patients diagnosed with leukemia. We are tracking their time till complete remission and have imposed the 95% "log-log" confidence interval around the expected probabilities. For added interpretability, the X-axis of the plot is scalled logarithmically.
+```{r include=FALSE}
+Leukefinal$CRkm=Surv(as.numeric(Leukefinal$TimetoCR),Leukefinal$IndCR)
+```
+```{r echo=FALSE, warning=FALSE}
+fit1.1 = survfit(CRkm~1,
+                 data = Leukefinal,conf.type="log-log")
+autoplot(fit1.1,surv.colour = 'black',
+         censor.colour = "red",
+         conf.int.fill = 'blue')+
+  scale_x_log10()+
+  ggtitle("Survival Function of Leukemia Patients till Complete Remision")+
+  xlab("Time to Complete Remission")+
+  ylab("Proportion not in Complete Remission")
+```
+
+From this function we can calculate that after about 75 days, 70% of patients are expected to be in complete remission remission.
+```{r}
+sumfit1.1=summary(fit1.1)
+.3*124
+sumfit1.1
+```
+
+We may also calculate the probability a person takes longer than 3 months (90 days) to enter complete remission.
+We calculate the mean probability for this to be true at 27.78% with a 95% confidence band of 19.96% and 36.12%.
+
+```{r}
+fit1.1$surv[fit1.1$time==84]
+fit1.1$lower[fit1.1$time==84]
+fit1.1$upper[fit1.1$time==84]
+```
+
+
+
+#Question 1.2
+
+We now wish to determine the effect of treatment type on a patients time to enter complete remission. We are examining two treatment types, Daunorubicin and Idarubicin, and we wish to determine if there is a significant difference in the time till complete remission. Here we plot the survival function respective of both treatment types. Visual analysis shows a stark difference in performance in favor of Idarubicin. 
+
+Numerically we can examine the effect further. We do this by examing the median time to complete remission for both drugs. Upon doing this we find that 50% of patients treated with Idarubicin are expected to enter complete remission within 40 days. This is compared to expectation of 56 days for patients treated with Daunorubicin. 
+
+With this analysis we can claim that, in terms of reducing time to complete remission, Idarubicin is a superior drug to Daunorubicin.
+
+```{r warning=FALSE}
+fit1.2=survfit(CRkm~Treat,
+               data = Leukefinal,
+               conf.type="log-log")
+treat.plot=autoplot(fit1.2)+
+  scale_x_log10()+
+  ggtitle("Survival Function per Treatement")+
+  xlab("Time to Complete Remission")+
+  ylab("Proportion not in Complete Remission")
+treat.plot
+```
+```{r}
+fit1.2
+sumfit1.2=summary(fit1.2)
+sumfit1.2
+```
+
+Now we wish to determine which drug performs best within a two month time limit. Using similar methods from the previous analysis we can determine that a patient undergoing treatment with Idarubicin will have a probability to enter complete remission within two months of approximately 70.24% with a 95% confidence bound of 58.57% and 71.12%. We can also claim that a patient undergoing treatment with Daunorubicin will have a probability of 52% to enter complete remission within two months. This prediction carries a 95% confidence boundry of 40.35% and 65.62%. From these results we can extrapolate that Idarubicin is a better form of treatment within two months.
+
+```{r}
+D2month=c(sumfit1.2$surv[sumfit1.2$time==59],
+          sumfit1.2$lower[sumfit1.2$time==59],
+          sumfit1.2$upper[sumfit1.2$time==59])
+
+I2month=c(sumfit1.2$surv[sumfit1.2$time==58],
+          sumfit1.2$lower[sumfit1.2$time==58],
+          sumfit1.2$upper[sumfit1.2$time==58])
+
+1-D2month
+1-I2month
+```
+
+
+#Question 1.3
+Now we wish to determine the effect of treatment respective to the sex of the patient. Firstly, we must determine the survival function for each sex seperately. Plots of both sex's response to the treaments can be seen here. Initial Visual analysis does indicate patient sex influenceing the performance of the drug.
+
+```{r warning=FALSE}
+fit1.3.I=survfit(CRkm~Sex,
+                 data = Leukefinal[Leukefinal$Treat=="I",],
+                 conf.type="log-log")
+fit1.3.D=survfit(CRkm~Sex,
+                 data = Leukefinal[Leukefinal$Treat=="D",],
+                 conf.type="log-log")
+I.plot=autoplot(fit1.3.I)+ggtitle("Time to CR: Idarubicin")+
+  scale_x_log10()+
+  ylab("Proportion not in Complete Remission")
+D.plot=autoplot(fit1.3.D)+ggtitle("Time to CR: Daunorubicin")+
+  scale_x_log10()+
+  ylab("Proportion not in Complete Remission")
+
+gridExtra::grid.arrange(I.plot,D.plot,ncol=2)
+```
+
+Further visual examination of each sex group and treatment type does not show signs of devation from the expectation gathered from the original plot detailing treatment type vs remission time. We can numerically examine this relation further. We use the respective survival functions for each sex to compute the median time to complete remission. Doing so shows that 50% of men and women undergoing treatment with Daunorubicin are expected to enter complete remission before 72 and 56 days respecitively. Whereas, 50% of men and women undergoing treatment with Idarubicin are expected to enter complete remission before 40 days.When we examine the confidence intervals of each groups median probabilities we arrive at a similar conclusion as the bounds for each treatment are quite large and generally encapsulate each other. From this we can say that the sex of the patient is not a confounding variable for their response to certain treatment.
+
+To further exemplify this point, comparrison plots of the survival function per sex and sex+treatment type comparing each distribution can be found here. From this we see that, in general, women achieve complete remission faster than their male counterparts.
+
+
+```{r echo=FALSE, warning=FALSE}
+
+md=rep(0,130)
+md=md+1*(Leukefinal$Sex=="M"&Leukefinal$Treat=="D")
+
+mi=rep(0,130)
+mi=mi+1*(Leukefinal$Sex=="M"&Leukefinal$Treat=="I")
+
+fd=rep(0,130)
+fd=fd+1*(Leukefinal$Sex=="F"&Leukefinal$Treat=="D")
+
+fi=rep(0,130)
+fi=fi+1*(Leukefinal$Sex=="F"&Leukefinal$Treat=="I")
+cr.treat.sex=tibble(CRkm=Leukefinal$CRkm)%>%
+  mutate(MD=md)%>%
+  mutate(MI=mi)%>%
+  mutate(FD=fd)%>%
+  mutate(FI=fi)
+cr.treat.sex$Treat=rep("",130)
+for(i in 1:130){
+  if(md[i]==1){
+    cr.treat.sex$SexTreat[i]="MD"
+  }
+  if(mi[i]==1){
+    cr.treat.sex$SexTreat[i]="MI"
+  }
+  if(fd[i]==1){
+    cr.treat.sex$SexTreat[i]="FD"
+  }
+  if(fi[i]==1){
+    cr.treat.sex$SexTreat[i]="FI"
+  }
+}
+
+
+
+fit1.3.sex=survfit(CRkm~Sex,
+                   data = Leukefinal,conf.type="log-log")
+sex.plot=autoplot(fit1.3.sex)+
+  ggtitle("Survival by Sex")+scale_x_log10()+
+  ylab("Proportion not in Complete Remission")
+fit1.3.full=survfit(CRkm~SexTreat,
+                    data = cr.treat.sex,conf.type="log-log")
+full.plot=autoplot(fit1.3.full)+
+  ggtitle("Survival by Sex and Treatment")+scale_x_log10()+
+  ylab("Proportion not in Complete Remission")
+
+gridExtra::grid.arrange(full.plot,sex.plot,ncol=2)
+```
+
+
+
+#Question 2.1
+
+Now we wish to determine a patients survival time. We will be focusing only on patients diagnosed with acute myelogenous leukemia (AML). To begin, we will calculate and plot the survival function detailing the time until death. From this survival function we can calculate the median survival time to be 458 days, with 25% of patients passing before 260 days and 75% of patients passing before 1424 days.
+```{r include=FALSE}
+leukem.aml=Leukefinal[Leukefinal$Eval=="Y",]
+leukem.aml$statusnum=rep(0,120)
+for(i in 1:120){
+  if(leukem.aml$StatusFollow[i]=="D"){
+    leukem.aml$statusnum[i]=1
+  }
+}
+leukem.aml.surv=with(leukem.aml,
+                     Surv(TimeSurv,statusnum))
+leukem.aml$km=leukem.aml.surv
+```
+
+
+```{r echo=FALSE, warning=FALSE}
+fit2.1=survfit(km~1,leukem.aml,conf.type="log-log")
+autoplot(fit2.1, surv.colour = 'blue',
+         censor.colour = 'red')+
+  ggtitle("AML: Time to Death")+
+  xlab("Days")+
+  ylab("Proportion not Dead")+
+  scale_x_log10()
+```
+```{r include=FALSE}
+fit2.1
+quantile(fit2.1,c(.25,.5,.75))
+```
+
+#Question 2.2
+
+Now we wish to use a cox proprtional hazard model to determine the effect of the patients age and their treatment (Daunorubicin and Idarubicin). From this model we can claim that a patients age and their treatment are significant factors when trying to predict their survival function. From this we can claim that for each unitary increase in age the probability of death increases by 1.83%. Patients that undergo treatment with Idarubicin have their probabilty of survival increase by a substantial 58.62%. A summary of the model can be found here.
+```{r echo=FALSE}
+cox2.2=coxph(km~Age+Treat,
+             data=leukem.aml)
+summary(cox2.2)
+```
+
+#Question 2.3
+
+Now we wish to determine the effect of going into complete remssion or undergoing a bone marrow transfusion has on the survial rate. Upon the addition of these parameters the effect of the type of treatemt has become insignificant. Similarly, the status of their bone marrow transfussion has become insignifcant as well. Unsurprisingly, knowing whether or not the patient has undergone complete remission is a very significant piece of knowledge when determining their proportional hazard. The Age parameter remains significant as well.
+```{r echo=FALSE}
+cox2.3=coxph(km~Age+Treat+CR+StatusBone,
+             data=leukem.aml)
+summary(cox2.3)
+```
+
+#Question 2.4
+
+Now we wish to determine which covariates satisfy the assumptions of a cox proportional hazard model. To begin we can test the weighted residuals. We see that all covariates aside from age are significant or very close to significance at the 10% level. Age is largely insigniifcant. Visual diagnostics will be used to assess these formal tests.
+
+The cox-snell residuals show that the model does fit the data well. Residual plots reconfirm this claim, with the schoenfeld, martingale, dfbeta, and dfbetas (dfbeta/standardized residuals) showing no signs of stark deviance from the model assumptions aside from a few outliers. To enssure that our continuous variable, Age, is in its correct form we will examine the martingale residuals of various transforms (logarithmic, exponential, power, and root). 
+```{r}
+test2.4=cox.zph(cox2.3,transform = "km")
+test2.4
+```
+
+```{r}
+coxsnellplot=gg_coxsnell(cox2.3)+
+  geom_abline(intercept=0, slope=1, col=2)
+
+coxsnellplot.cdf=gg_coxsnell(cox2.3,type="cdf")+
+  geom_line(aes(y=F), col=2)
+
+gridExtra::grid.arrange(coxsnellplot,
+                        coxsnellplot.cdf,ncol=2)
+```
+
+```{r}
+ggcoxzph(test2.4)
+ggcoxdiagnostics(cox2.3, type = "dfbeta",
+                 linear.predictions = F,
+                 ggtheme = theme_bw())
+ggcoxdiagnostics(cox2.3, type = "dfbetas",
+                 linear.predictions = F, 
+                 ggtheme = theme_bw())
+ggcoxdiagnostics(cox2.3, type = "deviance",
+                 linear.predictions = F,
+                 ggtheme = theme_bw())
+ggcoxdiagnostics(cox2.3, type = "martingale",
+                 linear.predictions = F,
+                 ggtheme = theme_bw())
+```
+```{r}
+set.seed(12345)
+cox.age=coxph(km~Age+log(Age)+I(Age^2)+sqrt(Age)+I(1.05^Age)+I(log((abs(Age-35)+1)^1,base=15)^2),data=leukem.aml)
+lin2.4=ggcoxfunctional(cox.age,data=leukem.aml)
+lin2.4
+```
+
+
+
+#Question 3.1
+
+Now we wish to model the relationship between survival, age, and treatment as an accelerated failure time model. We will use a weibull distribution as our baseline and the summary statistics of this model can be seen here. 
+```{r}
+fit3.1=survreg(km~Age+Treat,data=leukem.aml)
+summary(fit3.1)
+```
+
+#Question 3.2
+
+We can interperet the coefficients as such. A patient of age 0 undergoing treatment with Daunorubicin will be expected to have a survial time of 1212.26 days exp(7.10024). A per unitary increase in age will decelerate survival time by approximately 1.81% (exp(-.01831)-1). A patient using Idarubicin will accelerate their survival time by about 66.9% (exp(.51223)-1). The scale parameter generated for the weibull baseline distribution is 1.015905 (exp(.01578)).
+
+#Question 3.3
+
+Now we wish to interpret the AFT model ans a proportional hazards model with a weibull baseline distribution. We can do this by applying a transform amongst the coefficients. Doing so genertates the following table.
+```{r}
+para=fit3.1$coefficients
+lscale=log(fit3.1$scale)
+V=fit3.1$var
+# para
+# lscale
+# V
+lambda<-exp(-para[1]*exp(-lscale))
+alpha<-exp(-lscale)
+beta<--para[-1]*exp(-lscale)
+x<-c(lambda,alpha,beta)
+names(x)[1]<-"Intercept"
+names(x)[2]<-"lambda"
+m<-length(para[-1])
+G<-matrix(0,nrow=m+2,ncol=m+2)
+G[1,1]<--exp(-para[1]*exp(-lscale))*exp(-lscale)
+G[2:(m+1),3:(m+2)]<-diag(m)*(-exp(-lscale))
+G[m+2,1]<-exp(-para[1]*exp(-lscale))*para[1]*exp(-lscale)
+G[m+2,2]<--exp(-lscale)
+G[m+2,3:(m+2)]<-para[-1]*exp(-lscale)
+# G
+PrVar<-t(G)%*%V%*%G
+# PrVar
+PrStd<-sqrt(diag(PrVar))
+# PrStd
+PrChisq<-c(" "," ",(x[3:(m+2)]/PrStd[3:(m+2)])^2)
+PrPvalue<-c(" "," ",pchisq((x[3:(m+2)]/PrStd[3:(m+2)])^2,1,lower.tail=F))
+out<-data.frame(x,PrStd,PrChisq,PrPvalue)
+names(out)<-c("Estimate","StdError","Chisq","P-value")
+out
+```
+From this table we wish to determine the effect of age on the proportional hazard function. Doing so tells us that a unitary increase in age will result in the proprotional hazard increasing by about 1.82% (exp(0.0180225253)=1.018186). This estimate carries a confidence 95% interval of (1.000455 and 1.036231). From this we say that per unitary increase in age we are 95% confident the hazard function will increase somewhere between .04% and 3.62%.
+
+
+#Question 3.4
+
+Now we wish to perform a prediciton on the AFT model we drafted earlier. We will be estimating the survival function of a patient of age 44 and undergoing treatment with Idarubicin. From this estimate of the survival curve, we calculate that the estimated median survival time to be 622.98 days with a 95% confidence bound of 438.5 days and 885.08 days. A plot detailing the patient's estimated survival function bounded by a 95% confidence interval is seen here. 
+
+
+```{r warning=FALSE, include=FALSE}
+pred.data=tibble(Age=44,
+                 Treat=as.factor("I"))
+
+#median response
+predict(fit3.1,pred.data,
+        type = "quantile",p=.5)
+
+seq_0_1_1000=seq(0.001,.999,by=.001)
+
+days.aft=predict(fit3.1,pred.data,
+                 type = "quantile",p=seq_0_1_1000)
+
+
+upperbound=rep(0,length(seq_0_1_1000))
+lowerbound=rep(0,length(seq_0_1_1000))
+
+#the add_quantile() function cannot compute quantiles at 0 and 1.
+#To get around this I set the range to be (.001, .999).
+#Exact quantile estimates will be slightly off by a bit,
+#but this should not be a problem.
+
+for(i in 1:length(seq_0_1_1000)){
+  cis=add_quantile(pred.data,
+                     fit3.1,
+                     p=seq_0_1_1000[i],
+                     alpha=.05)[1,5:6]
+  lowerbound[i]=cis[[1]]
+  upperbound[i]=cis[[2]]
+
+}
+
+aft.preds=tibble(days=days.aft)%>%
+  mutate(prob=rev(seq_0_1_1000))%>%
+  mutate(ul=upperbound)%>%
+  mutate(ll=lowerbound)
+```
+
+```{r echo=FALSE, warning=FALSE}
+ggplot(aft.preds,aes(x=days,y=prob))+
+  geom_line()+
+  ggtitle("AFT Survival Curve: Age=44, Treatment=Idarubicin")+
+  xlab("Days")+
+  ylab("Probability of Survival")+
+  geom_ribbon(aes(xmin=ll,xmax=ul),
+              alpha=0.3,fill="blue")+
+  scale_x_log10()
+```
+
+
+Now we wish to compare the survival function generated by our AFT model to the one generated by the cox proportional hazard model. Unfortunately, we cannot view the right tail of this function as we did with the AFT model. This is because we can only view the survival rate as a proportional probability relative to the patients in the training data. With the AFT model we can regress through time in perpetuity.This allows us to calculate survival rates well past those observed in the training data. Fortunately, we are still able to extract usefull information regarding the distribution of the patient's cox proportional hazard estimated survival function.
+
+From this distribution we can say that, under the assumption of the cox model, the patient's median survival time can be calculated to be 497 days with a 95% confidence bound of 393 and 678 days. Furthermore, the maximum survival time we are able to calculate now is 1424 days. This value represents the 73rd quantile of the patients survival distribution and because of the nature of cox proportional hazard models we are unable to calculate a precise two-tail confidence interval for this estimation. For perspective the 73rd quantile for the AFT model was 1181.7613 days with a 95% confidence bound of 828.24 and 1706.21 days. With the estimation of the cox model being well within the confidence boundry of the AFT model, we can say that the two models are indead consistent with each other.  
+
+To formally test the similarity between the survival functions we shall use the Kolmogorov-Smirnov test between the 0 and 73rd quantiles of the survival time.
+
+From this test we calculate a test statistic D=.10526. This carries a p-value of .2246. 
+
+In consideration of the following hypotheses
+
+H0: The AFT and CoxPH estimated survival functions are equivalent.
+Ha: The AFT and CoxPH estimated survival functions are not equivalent.
+
+Based on the result from the Kolmogorov-Smirnov distribution comparrison test, we fail to reject the null hypothesis and claim that there is not enough evidence to reject the AFT and CoxPH estimated survival functions are equivalent.
+
+
+
+
+```{r echo=FALSE, warning=FALSE}
+cox2.2=coxph(km~Age+Treat,data=leukem.aml)
+cox.pred=survfit(cox2.2,newdata=pred.data, conf.type = "log-log")
+autoplot(cox.pred,surv.colour = "blue")+
+  ggtitle("COX PH Survival Curve: Age=44, Treatment=Idarubicin")+
+  xlab("Days")+
+  ylab("Probability of Survival")+
+  scale_x_log10()
+```
+
+
+
+```{r include=FALSE}
+aft.preds[0:730,1:4]
+quantile(cox.pred,p=c(.5,.73))
+ks.test(aft.preds$days[0:730],cox.pred$time)
+```
+
